@@ -1,14 +1,14 @@
 'use client';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import type { Answers, Screen } from '@/lib/form/types';
 import { buildSkipPayload } from '@/lib/form/skip';
 import { validateFields } from '@/lib/form/validate';
 import { FieldInput } from './FieldInput';
 
 type Entry = Record<string, string>;
-interface Props { screen: Screen; answers: Answers; persist: (patch: Answers) => Promise<boolean>; next: () => void; back: () => void; saving: boolean; readOnly: boolean }
+interface Props { screen: Screen; answers: Answers; persist: (patch: Answers) => Promise<boolean>; next: () => void; back: () => void; saving: boolean; readOnly: boolean; onRegisterFlush?: (flush: (() => Promise<boolean>) | null) => void }
 
-export function RepeatView({ screen, answers, persist, next, back, saving, readOnly }: Props) {
+export function RepeatView({ screen, answers, persist, next, back, saving, readOnly, onRegisterFlush }: Props) {
   const { key, addLabel } = screen.repeat!;
   const [none, setNone] = useState(answers[`${key}__none`] === true);
   const [entries, setEntries] = useState<Entry[]>(() => (Array.isArray(answers[key]) && (answers[key] as Entry[]).length ? (answers[key] as Entry[]) : [{}]));
@@ -18,6 +18,18 @@ export function RepeatView({ screen, answers, persist, next, back, saving, readO
   // Invalid values are blanked when skipping so the server never receives them.
   const validOnly = (entry: Entry): Entry => buildSkipPayload(screen.fields, entry, {});
   const save = (clean = false) => persist({ [key]: none ? [] : entries.map((e) => (clean ? validOnly(e) : e)).filter((e) => Object.values(e).some((v) => v?.trim())), [`${key}__none`]: none });
+  const [initial] = useState(() => JSON.stringify({ none, entries }));
+
+  // Before a jump elsewhere: keep what was typed with the skip rules. Nothing to save if untouched.
+  async function flush(): Promise<boolean> {
+    if (readOnly || JSON.stringify({ none, entries }) === initial) return true;
+    return save(true);
+  }
+  // Re-registered every render so the Wizard always calls the flush that sees the latest entries.
+  useEffect(() => {
+    onRegisterFlush?.(flush);
+  });
+  useEffect(() => () => onRegisterFlush?.(null), [onRegisterFlush]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
