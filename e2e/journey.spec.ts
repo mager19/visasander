@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { fillUntilEnabled } from './helpers';
 
 const MP = process.env.NEXT_PUBLIC_MANAGER_PATH ?? 'gestor';
@@ -44,20 +44,75 @@ async function fillVisibleFields(page: Page) {
           await el.getByRole('radio', { name: 'No' }).click();
           changed = true;
         }
-      } else if (type === 'select') {
+      } else if (type === 'select' && (await el.getAttribute('role')) === 'radiogroup') {
+        // Short selects render as segmented radios.
+        if ((await el.getByRole('radio', { checked: true }).count()) === 0) {
+          await el.getByRole('radio').first().click();
+          changed = true;
+        }
+      } else if (type === 'select' || type === 'co_department') {
         if (!(await el.inputValue())) {
-          await el.selectOption({ index: 1 });
+          await el.selectOption({ index: 1 }); // waits until the lazy department list is enabled
+          changed = true;
+        }
+      } else if (type === 'date') {
+        changed = (await fillDate(el, key)) || changed;
+      } else if (type === 'co_city') {
+        const input = el.getByRole('combobox');
+        // Disabled until a department is chosen; the next pass picks it up.
+        if (!(await input.inputValue()) && (await input.isEnabled())) {
+          await input.click();
+          await el.getByRole('option').first().click();
+          await expect(input).not.toHaveValue('');
+          changed = true;
+        }
+      } else if (type === 'multiselect') {
+        if ((await el.getByRole('checkbox', { checked: true }).count()) === 0) {
+          await el.getByRole('checkbox').first().click();
           changed = true;
         }
       } else if (!(await el.inputValue())) {
-        const value = type === 'date' ? (key.includes('caducidad') || key === 'fin' || key === 'hasta' ? '2032-01-01' : '2020-01-01')
-          : type === 'email' ? 'a@b.co' : type === 'tel' ? '3001234567' : type === 'number' ? '1000' : 'Prueba';
+        // Digits-only fields (e.g. cédula) render with inputmode="numeric".
+        const numeric = (await el.getAttribute('inputmode')) === 'numeric';
+        const value = type === 'email' ? 'a@b.co' : type === 'tel' ? '3001234567' : type === 'number' ? '1000' : numeric ? '1234567890' : 'Prueba';
         await el.fill(value);
         changed = true;
       }
     }
     if (!changed) return;
   }
+}
+
+/** Deterministic dates per key; all fall inside the field's dateBounds for any "today" in 2026-2030. */
+const DATE_TARGETS: Record<string, string> = {
+  fecha_nacimiento: '1990-05-15',
+  pasaporte_expedicion: '2022-01-10',
+  pasaporte_caducidad: '2031-01-10',
+  padre_nacimiento: '1960-03-10',
+  madre_nacimiento: '1962-07-20',
+  empresa_inicio: '2021-02-01',
+};
+
+/** Sets the Día / Mes / Año selects (year first so the month and day lists match it). Returns true if it changed anything. */
+async function fillDate(el: Locator, key: string): Promise<boolean> {
+  const part = (p: string) => el.locator(`[data-part="${p}"]`);
+  const filled = await Promise.all(['day', 'month', 'year'].map((p) => part(p).inputValue()));
+  if (filled.every(Boolean)) return false;
+  const target = DATE_TARGETS[key];
+  if (target) {
+    const [y, m, d] = target.split('-');
+    await part('year').selectOption(y);
+    await part('month').selectOption(m);
+    await part('day').selectOption(d);
+  } else {
+    // Generic fallback: a mid-range year from the offered list, then the first month and day it allows.
+    const years = await part('year').locator('option:not([value=""])').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
+    await part('year').selectOption(years[Math.floor(years.length / 2)]);
+    await part('month').selectOption({ index: 1 });
+    await part('day').selectOption({ index: 1 });
+  }
+  await expect(part('day')).not.toHaveValue('');
+  return true;
 }
 
 /**
