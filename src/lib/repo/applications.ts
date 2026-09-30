@@ -71,7 +71,7 @@ export async function setInProgress(id: string): Promise<void> {
 }
 
 export async function submitApplication(id: string): Promise<void> {
-  await sql()`update applications set status = 'submitted', submitted_at = now(), updated_at = now() where id = ${id}`;
+  await sql()`update applications set status = 'submitted', submitted_at = now(), updated_at = now() where id = ${id} and status in ('created', 'in_progress')`;
 }
 
 export async function markReviewed(id: string): Promise<void> {

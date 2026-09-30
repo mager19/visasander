@@ -24,6 +24,11 @@ export async function getFile(id: string): Promise<FileRow | null> {
   return rows[0] ? toFile(rows[0]) : null;
 }
 
+export async function getFileByKey(objectKey: string): Promise<FileRow | null> {
+  const rows = await sql()`select * from files where object_key = ${objectKey}`;
+  return rows[0] ? toFile(rows[0]) : null;
+}
+
 export async function deleteFileRow(id: string): Promise<void> {
   await sql()`delete from files where id = ${id}`;
 }
