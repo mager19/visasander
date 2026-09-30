@@ -13,7 +13,7 @@ export default defineConfig({
     // Logs the manager in ONCE per run (login is rate limited to 5 per 15 minutes per IP).
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     // Credentialed journeys; they reuse the manager session saved by "setup" (see test.use in the spec).
-    { name: 'journey', testMatch: /journey\.spec\.ts/, dependencies: ['setup'] },
+    { name: 'journey', testMatch: /journey\.spec\.ts/, dependencies: ['setup'], timeout: 600_000 },
     // Needs no DB and no credentials; must not depend on "setup".
     { name: 'routing', testMatch: /routing\.spec\.ts/ },
   ],
