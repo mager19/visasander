@@ -1,10 +1,16 @@
 :root {
   --lime: #beff50; --ink: #14140f; --canvas: #f5f5eb; --white: #ffffff;
-  --ash: #d2d2c8; --graphite: #6e6e64; --danger: #b3261e;
-  --radius-card: 28px; --radius-input: 8px; --radius-pill: 9999px;
+  --ash: #d2d2c8; --stone: #919183; --graphite: #6e6e64;
+  /* Status colors: AA contrast on canvas and white (danger 5.9:1, warning text 8:1 on its tint). */
+  --danger: #b3261e; --warning-ink: #6b4200; --warning-bg: #fbefcc;
+  --focus-ring: 0 0 0 3px rgba(190, 255, 80, 0.9);
+  --radius-card: 28px; --radius-inner: 18px; --radius-input: 8px; --radius-pill: 9999px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px;
+  --control-h: 52px;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='%2314140f' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--font-inter), system-ui, sans-serif; font-size: 16px; line-height: 1.5; }
+html, body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--font-inter), system-ui, sans-serif; font-size: 16px; line-height: 1.5; -webkit-text-size-adjust: 100%; }
 h1 { font-size: 28px; line-height: 1.14; letter-spacing: -0.02em; font-weight: 500; margin: 8px 0 16px; }
 h2 { font-size: 22px; line-height: 1.18; font-weight: 500; margin: 0 0 12px; }
 a { color: inherit; }
@@ -19,19 +25,102 @@ a { color: inherit; }
 .btn-primary { background: var(--lime); color: var(--ink); width: 100%; }
 .btn-ghost { background: transparent; color: var(--ink); border: 1px solid var(--ash); }
 .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
-.actions { position: sticky; bottom: 0; margin-top: auto; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); background: var(--canvas); display: grid; gap: 8px; }
-.field { display: grid; gap: 6px; margin: 0 0 16px; padding: 0; border: 0; }
-.field label, .field legend { font-weight: 500; }
-.field input, .field select, .field textarea { min-height: 48px; padding: 10px 12px; border: 1px solid var(--ash); border-radius: var(--radius-input); background: var(--white); font: inherit; width: 100%; }
-.field textarea { min-height: 96px; }
-.field .error { color: var(--danger); font-size: 14px; }
-.choices { display: flex; gap: 8px; }
-.choice { flex: 1; min-height: 52px; border-radius: var(--radius-pill); border: 1px solid var(--ash); background: var(--white); font: inherit; font-weight: 500; cursor: pointer; }
-.choice.on { background: var(--ink); color: var(--white); border-color: var(--ink); }
+.actions { position: sticky; bottom: 0; margin-top: auto; padding: var(--space-4) 0 calc(var(--space-3) + env(safe-area-inset-bottom)); background: var(--canvas); display: grid; gap: var(--space-2); border-top: 1px solid transparent; }
 .progress { height: 10px; border-radius: var(--radius-pill); background: var(--ash); overflow: hidden; }
 .progress > span { display: block; height: 100%; background: var(--lime); transition: width 0.3s ease; }
 .notice { background: var(--white); border-radius: var(--radius-card); padding: 24px; text-align: center; }
 .pill { display: inline-block; padding: 2px 12px; border-radius: var(--radius-pill); background: var(--canvas); font-size: 14px; }
 .step { display: flex; flex-direction: column; flex: 1; animation: enter 0.25s ease; }
+.step h1 { margin: var(--space-2) 0 var(--space-6); }
 @keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* ---------- form layout ---------- */
+.fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.entry { margin-bottom: var(--space-4); }
+.field { display: grid; gap: var(--space-3); margin: 0 0 28px; padding: 0; border: 0; min-width: 0; }
+.field label, .field legend, .field-label { font-weight: 500; font-size: 16px; line-height: 1.4; }
+.field-label .muted { font-weight: 400; }
+/* Hint sits 8px under the label and 8px above the control (the grid gap is 12px). */
+.field-hint { margin: calc(var(--space-1) * -1) 0; font-size: 14px; line-height: 1.43; color: var(--graphite); }
+.field-error, .field-warning { display: flex; align-items: flex-start; gap: var(--space-2); margin: calc(var(--space-1) * -1) 0 0; font-size: 14px; line-height: 1.43; }
+.field-error { color: var(--danger); }
+.field-warning { color: var(--warning-ink); background: var(--warning-bg); border-radius: var(--radius-input); padding: var(--space-2) var(--space-3); margin: 0; }
+.field-icon { flex: none; margin-top: 2px; }
+.field .error { color: var(--danger); font-size: 14px; }
+.link-btn { margin-left: var(--space-2); padding: 0; border: 0; background: none; font: inherit; font-weight: 500; color: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; min-height: 24px; }
+
+/* ---------- controls: text, textarea, native select ---------- */
+.field input, .field select, .field textarea, .control {
+  width: 100%; min-height: var(--control-h); padding: 13px 14px; margin: 0;
+  border: 1px solid var(--ash); border-radius: var(--radius-input); background: var(--white); color: #000;
+  font: inherit; font-size: 16px; line-height: 1.5;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.field textarea { min-height: 112px; resize: vertical; }
+.field input::placeholder, .field textarea::placeholder { color: var(--graphite); opacity: 1; }
+.field input:hover:not(:disabled), .field select:hover:not(:disabled), .field textarea:hover:not(:disabled) { border-color: var(--stone); }
+/* Focus: ink edge (inset keeps the layout still) plus a soft lime ring, instead of a thick black outline. */
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: none; border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink), var(--focus-ring);
+}
+.field [aria-invalid='true']:not(:focus) { border-color: var(--danger); }
+.field input:disabled, .field select:disabled, .field textarea:disabled { background: var(--canvas); color: var(--graphite); border-color: var(--ash); cursor: not-allowed; opacity: 1; -webkit-text-fill-color: var(--graphite); }
+.select, .field select {
+  appearance: none; -webkit-appearance: none; padding-right: 44px; cursor: pointer; text-overflow: ellipsis;
+  background: var(--white) var(--chevron) no-repeat right 14px center / 16px 16px;
+}
+.field select:disabled { background-color: var(--canvas); }
+
+/* ---------- date: three selects ---------- */
+.date-parts { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.35fr) minmax(0, 1fr); gap: var(--space-2); align-items: start; }
+.date-parts .select { padding-left: 12px; padding-right: 32px; background-position: right 10px center; }
+
+/* ---------- segmented radios (yes/no, short selects) ---------- */
+.segmented { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.segment, .chip {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: var(--control-h); padding: 0 var(--space-4); border: 1px solid var(--ash); border-radius: var(--radius-pill);
+  background: var(--white); color: var(--ink); font: inherit; font-weight: 500; cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.segment { flex: 1 1 0; min-width: 88px; }
+.segment:hover:not(:disabled), .chip:hover:not(:disabled) { border-color: var(--ink); }
+.segment[aria-checked='true'], .chip[aria-checked='true'] { background: var(--ink); border-color: var(--ink); color: var(--white); }
+/* The one chromatic accent inside the form: the lime check on a selected option. */
+.segment[aria-checked='true'] .check-icon, .chip[aria-checked='true'] .check-icon { color: var(--lime); }
+.segment:focus-visible, .chip:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--ink); }
+.segmented[aria-invalid='true'] .segment:not([aria-checked='true']) { border-color: var(--danger); }
+.segment:disabled, .chip:disabled { cursor: not-allowed; opacity: 0.55; }
+
+/* ---------- chips (multiselect) ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.chip { min-height: 48px; padding: 0 18px; }
+.chip[aria-invalid='true']:not([aria-checked='true']) { border-color: var(--danger); }
+
+/* Legacy toggle (repeat screens: "Ninguno / No aplica"). */
+.choices { display: flex; gap: var(--space-3); }
+.choice { flex: 1; min-height: var(--control-h); border-radius: var(--radius-pill); border: 1px solid var(--ash); background: var(--white); color: var(--ink); font: inherit; font-weight: 500; cursor: pointer; }
+.choice.on { background: var(--ink); color: var(--white); border-color: var(--ink); }
+
+/* ---------- combobox (city) ---------- */
+.combo { display: grid; gap: var(--space-2); }
+.combo-box { position: relative; }
+.field .combo-input { padding-right: 76px; }
+.combo-chevron { position: absolute; right: 14px; top: 50%; margin-top: -8px; pointer-events: none; color: var(--ink); transition: transform 0.15s ease; }
+.combo.is-open .combo-chevron { transform: rotate(180deg); }
+.field .combo-input:disabled + .combo-chevron, .combo-input:disabled ~ .combo-chevron { color: var(--stone); }
+.combo-clear { position: absolute; right: 38px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--graphite); cursor: pointer; }
+.combo-clear:hover { color: var(--ink); background: var(--canvas); }
+.combo-pop { background: var(--white); border: 1px solid var(--ash); border-radius: var(--radius-input); overflow: hidden; }
+.combo-pop[hidden] { display: none; }
+/* While the city list is open the sticky action bar would cover it: let the bar flow after the list. */
+.step:has(.combo.is-open) .actions { position: static; }
+.combo-list { list-style: none; margin: 0; padding: var(--space-1) 0; max-height: min(288px, 42dvh); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.combo-option { display: flex; align-items: center; min-height: 48px; padding: var(--space-3) var(--space-4); cursor: pointer; line-height: 1.3; }
+.combo-option + .combo-option { border-top: 1px solid var(--canvas); }
+.combo-option.is-active { background: var(--canvas); }
+.combo-option[aria-selected='true'] { font-weight: 500; box-shadow: inset 3px 0 0 var(--lime); }
+.combo-empty { margin: 0; padding: var(--space-4); color: var(--graphite); font-size: 14px; }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
