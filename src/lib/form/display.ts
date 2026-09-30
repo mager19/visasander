@@ -1,13 +1,21 @@
 import type { Answers, Chapter, Field } from './types';
-import { isFilled, isVisible } from './visibility';
+import { isFilled, isVisible, splitMulti } from './visibility';
 
 export interface Row { label: string; value: string; missing: boolean }
 
-function format(field: Field, raw: unknown): string {
+function format(field: Field, raw: unknown, answers: Answers = {}): string {
   if (!isFilled(raw)) return '';
   const v = (raw as string).trim();
   if (field.type === 'yesno') return v === 'yes' ? 'Sí' : 'No';
   if (field.type === 'select') return field.options?.find((o) => o.value === v)?.label ?? v;
+  if (field.type === 'multiselect') {
+    const labels = splitMulti(v).map((x) => {
+      const label = field.options?.find((o) => o.value === x)?.label ?? x;
+      const other = answers[`${field.key}_otro`];
+      return x === 'otro' && isFilled(other) ? `${label} (${(other as string).trim()})` : label;
+    });
+    return labels.join(', ');
+  }
   return v;
 }
 
@@ -29,7 +37,7 @@ export function chapterRows(chapter: Chapter, answers: Answers): Row[] {
     }
     for (const f of screen.fields) {
       if (!isVisible(f.showIf, answers)) continue;
-      const value = format(f, answers[f.key]);
+      const value = format(f, answers[f.key], answers);
       rows.push({ label: f.label, value, missing: f.required && value === '' });
     }
   }

@@ -19,8 +19,16 @@ export const CHAPTERS: Chapter[] = [
           f('estado_civil', 'Estado civil', { type: 'select', options: opts(['soltero', 'Soltero/a'], ['casado', 'Casado/a'], ['union_libre', 'Unión libre'], ['divorciado', 'Divorciado/a'], ['viudo', 'Viudo/a'], ['separado', 'Separado/a']) }),
         ],
       },
-      { id: 'birth_date', title: 'Fecha de nacimiento', fields: [f('fecha_nacimiento', 'Fecha de nacimiento', { type: 'date' })] },
-      { id: 'birth_place', title: 'Lugar de nacimiento', fields: [f('ciudad_nacimiento', 'Ciudad'), f('departamento_nacimiento', 'Departamento o estado'), f('pais_nacimiento', 'País')] },
+      { id: 'birth_date', title: 'Fecha de nacimiento', fields: [f('fecha_nacimiento', 'Fecha de nacimiento', { type: 'date', range: { yearsBack: 120, yearsForward: 0 } })] },
+      { id: 'birth_place', title: 'Lugar de nacimiento', fields: [
+          f('pais_nacimiento', 'País de nacimiento', { type: 'select', options: opts(['Colombia', 'Colombia'], ['otro', 'Otro país']), default: 'Colombia' }),
+          f('departamento_nacimiento', 'Departamento', { type: 'co_department', showIf: when('pais_nacimiento', 'Colombia') }),
+          f('ciudad_nacimiento', 'Ciudad o municipio', { type: 'co_city', dependsOn: 'departamento_nacimiento', showIf: when('pais_nacimiento', 'Colombia') }),
+          f('pais_nacimiento_otro', 'País', { showIf: when('pais_nacimiento', 'otro') }),
+          f('departamento_nacimiento_otro', 'Estado o provincia', { required: false, showIf: when('pais_nacimiento', 'otro') }),
+          f('ciudad_nacimiento_otro', 'Ciudad', { showIf: when('pais_nacimiento', 'otro') }),
+        ],
+      },
       {
         id: 'nationality', title: 'Nacionalidad',
         fields: [
@@ -29,7 +37,7 @@ export const CHAPTERS: Chapter[] = [
           f('otras_nacionalidades_detalle', 'Indica cuáles', { type: 'textarea', showIf: YES('otras_nacionalidades') }),
         ],
       },
-      { id: 'national_id', title: 'Documento de identidad', fields: [f('cedula', 'Número de cédula o identificación nacional')] },
+      { id: 'national_id', title: 'Documento de identidad', fields: [f('cedula', 'Número de cédula o identificación nacional', { digits: { min: 5, max: 12 } })] },
       { id: 'address', title: 'Domicilio', fields: [f('direccion', 'Dirección de domicilio actual', { type: 'textarea' })] },
       {
         id: 'contact', title: 'Datos de contacto',
@@ -61,8 +69,8 @@ export const CHAPTERS: Chapter[] = [
       {
         id: 'passport_dates', title: 'Fechas del pasaporte',
         fields: [
-          f('pasaporte_expedicion', 'Fecha de expedición', { type: 'date' }),
-          f('pasaporte_caducidad', 'Fecha de caducidad', { type: 'date', after: 'pasaporte_expedicion' }),
+          f('pasaporte_expedicion', 'Fecha de expedición', { type: 'date', range: { yearsBack: 20, yearsForward: 0 } }),
+          f('pasaporte_caducidad', 'Fecha de caducidad', { type: 'date', after: 'pasaporte_expedicion', afterMessage: 'Debe ser posterior a la fecha de expedición', range: { yearsForward: 20 } }),
         ],
       },
       {
@@ -118,7 +126,7 @@ export const CHAPTERS: Chapter[] = [
         fields: [
           yesNo('visa_previa', '¿Has tenido alguna vez una visa de EE. UU.?'),
           f('visa_previa_numero', 'Número de la visa anterior', { required: false, showIf: YES('visa_previa') }),
-          f('visa_previa_fecha', 'Fecha de expedición de la visa', { type: 'date', showIf: YES('visa_previa') }),
+          f('visa_previa_fecha', 'Fecha de expedición de la visa', { type: 'date', range: { yearsForward: 0 }, showIf: YES('visa_previa') }),
           f('visa_previa_perdida', '¿Se perdió, fue robada o revocada?', { type: 'yesno', showIf: YES('visa_previa') }),
         ],
       },
@@ -143,8 +151,8 @@ export const CHAPTERS: Chapter[] = [
     id: 'family',
     title: 'Familia',
     screens: [
-      { id: 'father', title: 'Tu padre', fields: [f('padre_nombres', 'Nombres completos'), f('padre_nacimiento', 'Fecha de nacimiento', { type: 'date' }), f('padre_ubicacion', 'Ubicación actual')] },
-      { id: 'mother', title: 'Tu madre', fields: [f('madre_nombres', 'Nombres completos'), f('madre_nacimiento', 'Fecha de nacimiento', { type: 'date' }), f('madre_ubicacion', 'Ubicación actual')] },
+      { id: 'father', title: 'Tu padre', fields: [f('padre_nombres', 'Nombres completos'), f('padre_nacimiento', 'Fecha de nacimiento', { type: 'date', range: { yearsBack: 120, yearsForward: 0 } }), f('padre_ubicacion', 'Ubicación actual')] },
+      { id: 'mother', title: 'Tu madre', fields: [f('madre_nombres', 'Nombres completos'), f('madre_nacimiento', 'Fecha de nacimiento', { type: 'date', range: { yearsBack: 120, yearsForward: 0 } }), f('madre_ubicacion', 'Ubicación actual')] },
       {
         id: 'family_us', title: 'Familiares directos en EE. UU.',
         fields: [
@@ -176,7 +184,7 @@ export const CHAPTERS: Chapter[] = [
       {
         id: 'job_details', title: 'Detalles del trabajo', showIf: when('ocupacion', 'empleado', 'independiente', 'estudiante'),
         fields: [
-          f('empresa_inicio', 'Fecha de inicio', { type: 'date' }),
+          f('empresa_inicio', 'Fecha de inicio', { type: 'date', range: { yearsBack: 60, yearsForward: 0 } }),
           f('salario_mensual', 'Salario mensual (moneda local)', { type: 'number', showIf: when('ocupacion', 'empleado', 'independiente') }),
           f('empresa_funciones', 'Descripción breve de tus funciones', { type: 'textarea' }),
         ],
@@ -186,7 +194,7 @@ export const CHAPTERS: Chapter[] = [
         repeat: { key: 'empleos_previos', addLabel: 'Agregar otro empleo' },
         fields: [
           f('empresa', 'Empresa'), f('direccion', 'Dirección', { required: false }), f('telefono', 'Teléfono', { type: 'tel', required: false }),
-          f('inicio', 'Fecha de inicio', { type: 'date' }), f('fin', 'Fecha de fin', { type: 'date', after: 'inicio' }),
+          f('inicio', 'Fecha de inicio', { type: 'date', range: { yearsBack: 60, yearsForward: 0 } }), f('fin', 'Fecha de fin', { type: 'date', after: 'inicio' }),
           f('funciones', 'Funciones', { type: 'textarea', required: false }),
         ],
       },
@@ -196,10 +204,16 @@ export const CHAPTERS: Chapter[] = [
         fields: [
           f('institucion', 'Nombre de la institución'), f('direccion', 'Dirección', { required: false }),
           f('nivel', 'Nivel', { type: 'select', options: opts(['secundaria', 'Secundaria'], ['universidad', 'Universidad'], ['posgrado', 'Posgrado'], ['otro', 'Otro']) }),
-          f('desde', 'Desde', { type: 'date' }), f('hasta', 'Hasta', { type: 'date', after: 'desde' }),
+          f('desde', 'Desde', { type: 'date', range: { yearsBack: 60, yearsForward: 0 } }), f('hasta', 'Hasta', { type: 'date', after: 'desde' }),
         ],
       },
-      { id: 'languages', title: 'Idiomas', fields: [f('idiomas', 'Idiomas que hablas')] },
+      {
+        id: 'languages', title: 'Idiomas',
+        fields: [
+          f('idiomas', 'Idiomas que hablas', { type: 'multiselect', options: opts(['es', 'Español'], ['en', 'Inglés'], ['fr', 'Francés'], ['pt', 'Portugués'], ['it', 'Italiano'], ['de', 'Alemán'], ['zh', 'Chino'], ['otro', 'Otro']) }),
+          f('idiomas_otro', '¿Cuál otro idioma?', { showIf: { key: 'idiomas', includes: 'otro' } }),
+        ],
+      },
       { id: 'visited', title: 'Países visitados', fields: [f('paises_visitados', 'Países visitados en los últimos 5 años', { type: 'textarea' })] },
       { id: 'orgs', title: 'Organizaciones', fields: [f('organizaciones', 'Organizaciones profesionales o caritativas a las que perteneces', { type: 'textarea', required: false })] },
     ],

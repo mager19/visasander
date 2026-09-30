@@ -17,7 +17,7 @@ interface Props {
 
 export function ScreenView({ screen, answers, persist, next, back, saving, readOnly }: Props) {
   const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(screen.fields.map((f) => [f.key, typeof answers[f.key] === 'string' ? (answers[f.key] as string) : ''])),
+    Object.fromEntries(screen.fields.map((f) => [f.key, typeof answers[f.key] === 'string' && (answers[f.key] as string) !== '' ? (answers[f.key] as string) : (f.default ?? '')])),
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const fields = screen.fields.filter((f) => isVisible(f.showIf, { ...answers, ...values }));
@@ -34,7 +34,10 @@ export function ScreenView({ screen, answers, persist, next, back, saving, readO
   }
   async function skip() {
     if (readOnly) return next();
-    if (await persist(visibleValues())) next();
+    // Skipping saves what was typed, but the server rejects invalid values: keep only empty or valid ones.
+    const errs = validateFields(fields, values, answers);
+    const keep = Object.fromEntries(Object.entries(visibleValues()).filter(([k, v]) => v.trim() === '' || !errs[k]));
+    if (await persist(keep)) next();
   }
 
   return (
@@ -42,7 +45,7 @@ export function ScreenView({ screen, answers, persist, next, back, saving, readO
       <h1>{screen.title}</h1>
       <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       {fields.map((f) => (
-        <FieldInput key={f.key} field={f} value={values[f.key] ?? ''} error={errors[f.key]} onChange={(v) => setValues((s) => ({ ...s, [f.key]: v }))} />
+        <FieldInput key={f.key} field={f} value={values[f.key] ?? ''} error={errors[f.key]} dependsValue={f.dependsOn ? values[f.dependsOn] : undefined} onChange={(v) => setValues((s) => ({ ...s, [f.key]: v }))} />
       ))}
       </fieldset>
       <div className="actions">

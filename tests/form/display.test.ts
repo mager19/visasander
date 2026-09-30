@@ -25,3 +25,27 @@ describe('chapterRows', () => {
     expect(chapterAsText(passport, { pasaporte_numero: 'AB123' })).toContain('Número de pasaporte: AB123');
   });
 });
+
+describe('multiselect and birth place display', () => {
+  const work = CHAPTERS.find((c) => c.id === 'work')!;
+  it('joins option labels and adds the other-language text', () => {
+    const rows = chapterRows(work, { idiomas: 'es,en' });
+    expect(rows.find((r) => r.label === 'Idiomas que hablas')!.value).toBe('Español, Inglés');
+    const other = chapterRows(work, { idiomas: 'es,otro', idiomas_otro: 'Japonés' });
+    expect(other.find((r) => r.label === 'Idiomas que hablas')!.value).toBe('Español, Otro (Japonés)');
+    expect(other.find((r) => r.label === '¿Cuál otro idioma?')!.value).toBe('Japonés');
+    expect(chapterRows(work, { idiomas: 'es' }).some((r) => r.label === '¿Cuál otro idioma?')).toBe(false);
+    expect(chapterAsText(work, { idiomas: 'es,fr' })).toContain('Idiomas que hablas: Español, Francés');
+  });
+  it('shows the Colombia or other-country branch of the birth place', () => {
+    const personal = CHAPTERS[0];
+    const co = chapterRows(personal, { pais_nacimiento: 'Colombia', departamento_nacimiento: 'Antioquia', ciudad_nacimiento: 'Medellín' });
+    expect(co.find((r) => r.label === 'Ciudad o municipio')!.value).toBe('Medellín');
+    expect(co.find((r) => r.label === 'País de nacimiento')!.value).toBe('Colombia');
+    expect(co.some((r) => r.label === 'Estado o provincia')).toBe(false);
+    const other = chapterRows(personal, { pais_nacimiento: 'otro', pais_nacimiento_otro: 'Chile' });
+    expect(other.find((r) => r.label === 'País de nacimiento')!.value).toBe('Otro país');
+    expect(other.find((r) => r.label === 'Estado o provincia')).toMatchObject({ missing: false });
+    expect(other.find((r) => r.label === 'Ciudad')).toMatchObject({ missing: true });
+  });
+});

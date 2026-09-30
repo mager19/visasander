@@ -1,8 +1,10 @@
+import { citiesOf, COLOMBIA_DEPARTMENTS } from '@/lib/data/colombia';
 import type { Field } from '@/lib/form/types';
+import { splitMulti } from '@/lib/form/visibility';
 
-interface Props { field: Field; value: string; error?: string; onChange: (v: string) => void; idPrefix?: string }
+interface Props { field: Field; value: string; error?: string; onChange: (v: string) => void; idPrefix?: string; dependsValue?: string }
 
-export function FieldInput({ field, value, error, onChange, idPrefix = '' }: Props) {
+export function FieldInput({ field, value, error, onChange, idPrefix = '', dependsValue }: Props) {
   const id = `f-${idPrefix}${field.key}`;
   const common = { id, value, 'aria-invalid': !!error, 'aria-describedby': error ? `${id}-err` : undefined };
   const err = error && <span id={`${id}-err`} className="error" role="alert">{error}</span>;
@@ -20,6 +22,34 @@ export function FieldInput({ field, value, error, onChange, idPrefix = '' }: Pro
         </div>
         {err}
       </fieldset>
+    );
+  }
+  if (field.type === 'multiselect') {
+    // phase-2 will replace this temporary checkbox list
+    const selected = splitMulti(value);
+    const toggle = (v: string) => onChange((selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v]).join(','));
+    return (
+      <fieldset className="field" {...meta}>
+        <legend>{label}</legend>
+        {field.options?.map((o) => (
+          <label key={o.value}><input type="checkbox" checked={selected.includes(o.value)} onChange={() => toggle(o.value)} /> {o.label}</label>
+        ))}
+        {err}
+      </fieldset>
+    );
+  }
+  if (field.type === 'co_department' || field.type === 'co_city') {
+    // phase-2 will replace these temporary plain selects
+    const list = field.type === 'co_department' ? COLOMBIA_DEPARTMENTS : citiesOf(dependsValue ?? '');
+    return (
+      <div className="field">
+        <label htmlFor={id}>{label}</label>
+        <select {...common} {...meta} onChange={(e) => onChange(e.target.value)}>
+          <option value="">Selecciona…</option>
+          {list.map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+        {err}
+      </div>
     );
   }
   if (field.type === 'select') {

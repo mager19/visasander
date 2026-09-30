@@ -14,7 +14,12 @@ export function RepeatView({ screen, answers, persist, next, back, saving, readO
   const [errors, setErrors] = useState<Record<string, string>[]>([]);
 
   const setValue = (i: number, k: string, v: string) => setEntries((list) => list.map((e, j) => (j === i ? { ...e, [k]: v } : e)));
-  const save = () => persist({ [key]: none ? [] : entries.filter((e) => Object.values(e).some((v) => v?.trim())), [`${key}__none`]: none });
+  // Drops values that fail validation (used when skipping) so the server never receives them.
+  const validOnly = (entry: Entry): Entry => {
+    const errs = validateFields(screen.fields, entry, {});
+    return Object.fromEntries(Object.entries(entry).filter(([k, v]) => !v?.trim() || !errs[k]));
+  };
+  const save = (clean = false) => persist({ [key]: none ? [] : entries.map((e) => (clean ? validOnly(e) : e)).filter((e) => Object.values(e).some((v) => v?.trim())), [`${key}__none`]: none });
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -48,7 +53,7 @@ export function RepeatView({ screen, answers, persist, next, back, saving, readO
       </fieldset>
       <div className="actions">
         <button className="btn btn-primary" disabled={saving}>Siguiente</button>
-        <button type="button" className="btn btn-ghost" onClick={async () => { if (readOnly || (await save())) next(); }} disabled={saving}>Saltar por ahora</button>
+        <button type="button" className="btn btn-ghost" onClick={async () => { if (readOnly || (await save(true))) next(); }} disabled={saving}>Saltar por ahora</button>
         <button type="button" className="btn btn-ghost" onClick={back}>Atrás</button>
       </div>
     </form>
