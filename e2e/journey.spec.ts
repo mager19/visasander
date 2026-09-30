@@ -1,16 +1,24 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
 
 const MP = process.env.NEXT_PUBLIC_MANAGER_PATH ?? 'gestor';
 const PASSWORD = process.env.E2E_MANAGER_PASSWORD ?? '';
 
+// Session saved by e2e/auth.setup.ts; it does not exist when the password is missing (tests skip).
+test.use({ storageState: PASSWORD ? '.auth/manager.json' : undefined });
+
 // 1x1 PNG
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 
-async function managerLogin(page: Page) {
-  await page.goto(`/${MP}/login`);
-  await page.getByLabel('Contraseña').fill(PASSWORD);
-  await page.getByRole('button', { name: 'Entrar' }).click();
+// The manager session comes from e2e/auth.setup.ts (storageState), so the test `page` is already logged in.
+async function openManagerList(page: Page) {
+  await page.goto(`/${MP}`);
   await expect(page.getByRole('heading', { name: 'Solicitudes' })).toBeVisible();
+}
+
+// Applicant side runs in a FRESH context: no manager cookie, no stale applicant cookie.
+async function newApplicantPage(browser: Browser): Promise<{ page: Page; close: () => Promise<void> }> {
+  const context = await browser.newContext({ ...test.info().project.use, storageState: undefined });
+  return { page: await context.newPage(), close: () => context.close() };
 }
 
 async function createApplication(page: Page, name: string) {
@@ -18,7 +26,8 @@ async function createApplication(page: Page, name: string) {
   await page.getByRole('button', { name: 'Crear solicitud' }).click();
   const link = (await page.getByTestId('new-link').textContent())!;
   const code = (await page.getByTestId('new-code').textContent())!;
-  return { link, code };
+  // Only the path is used, so an APP_URL pointing at production can never be visited.
+  return { link: new URL(link.trim()).pathname, code: code.trim() };
 }
 
 async function fillVisibleFields(page: Page) {
@@ -39,12 +48,13 @@ async function fillVisibleFields(page: Page) {
   }
 }
 
-test('full applicant journey is visible to the manager at 100%', async ({ page }) => {
+test('full applicant journey is visible to the manager at 100%', async ({ page: manager, browser }) => {
   test.skip(!PASSWORD, 'Set E2E_MANAGER_PASSWORD');
   const name = `Cliente E2E ${Date.now()}`;
-  await managerLogin(page);
-  const { link, code } = await createApplication(page, name);
+  await openManagerList(manager);
+  const { link, code } = await createApplication(manager, name);
 
+  const { page, close } = await newApplicantPage(browser);
   await page.goto(link);
   await page.getByLabel('Código de acceso').fill(code);
   await page.getByRole('button', { name: 'Entrar' }).click();
@@ -69,18 +79,21 @@ test('full applicant journey is visible to the manager at 100%', async ({ page }
   await page.getByRole('button', { name: 'Enviar solicitud' }).click();
   await expect(page.getByTestId('submitted')).toBeVisible();
 
-  await page.goto(`/${MP}`);
-  await page.getByRole('link', { name }).click();
-  await expect(page.getByTestId('progress-percent')).toHaveText('100%');
+  await close();
+
+  await manager.goto(`/${MP}`);
+  await manager.getByRole('link', { name }).click();
+  await expect(manager.getByTestId('progress-percent')).toHaveText('100%');
 });
 
-test('five wrong codes lock the application and the manager can unlock it', async ({ page }) => {
+test('five wrong codes lock the application and the manager can unlock it', async ({ page: manager, browser }) => {
   test.skip(!PASSWORD, 'Set E2E_MANAGER_PASSWORD');
   const name = `Cliente Bloqueo ${Date.now()}`;
-  await managerLogin(page);
-  const { link, code } = await createApplication(page, name);
+  await openManagerList(manager);
+  const { link, code } = await createApplication(manager, name);
   const wrong = code === '000000' ? '111111' : '000000';
 
+  const { page, close } = await newApplicantPage(browser);
   await page.goto(link);
   for (let i = 0; i < 5; i++) {
     await page.getByLabel('Código de acceso').fill(wrong);
@@ -90,15 +103,12 @@ test('five wrong codes lock the application and the manager can unlock it', asyn
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Acceso bloqueado' })).toBeVisible();
 
-  await page.goto(`/${MP}`);
-  await page.getByRole('link', { name }).click();
-  await page.getByRole('button', { name: 'Desbloquear' }).click();
+  await manager.goto(`/${MP}`);
+  await manager.getByRole('link', { name }).click();
+  await manager.getByRole('button', { name: 'Desbloquear' }).click();
+  // Wait for the unlock to commit before the applicant reloads.
+  await expect(manager.getByText('Solicitud desbloqueada')).toBeVisible();
   await page.goto(link);
   await expect(page.getByLabel('Código de acceso')).toBeVisible();
-});
-
-test('manager routing hides the internal path and requires login', async ({ page, request }) => {
-  expect((await request.get('/manager')).status()).toBe(404);
-  await page.goto(`/${MP}`);
-  await expect(page).toHaveURL(new RegExp(`/${MP}/login`));
+  await close();
 });

@@ -29,7 +29,12 @@ Import the repo, add every variable from `.env.example` in Project Settings → 
 
 ## 5. Checks
 - `npm test` (set `TEST_DATABASE_URL` to include integration tests)
-- `npm run e2e` (needs `.env.local` with working Neon + R2 dev credentials and `E2E_MANAGER_PASSWORD` equal to the password hashed above)
+- `npm run e2e` starts `npm run dev` itself. The e2e process reads these variables from the real environment or from `.env.local` (the real environment wins):
+  - `E2E_MANAGER_PASSWORD`: the plain password whose hash is in `MANAGER_PASSWORD_HASH`. Without it the credentialed tests and the login setup are skipped; the routing test still runs.
+  - `NEXT_PUBLIC_MANAGER_PATH` (optional, default `gestor`)
+  - `E2E_BASE_URL` (optional, default `http://localhost:3000`)
+- **Warning:** for e2e, point `.env.local` at a DEV Neon branch and a DEV R2 bucket, never production. The tests create real applications and upload real files.
+- The manager login is rate limited to 5 attempts per 15 minutes per IP (successful attempts count too). The e2e logs in once per run (`e2e/auth.setup.ts`, session saved to the git-ignored `.auth/`), so at most 5 runs fit in 15 minutes; on a 429, wait and retry.
 
 ## 6. Security notes
 - The manager login and applicant access rate limits key on the `x-forwarded-for` header. Vercel sets and overwrites it, so clients cannot spoof it. If you deploy elsewhere, put the app behind a proxy that also sets and overwrites this header.
