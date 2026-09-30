@@ -21,7 +21,8 @@ export function ScreenView({ screen, answers, persist, next, back, saving, readO
     Object.fromEntries(screen.fields.map((f) => [f.key, typeof answers[f.key] === 'string' && (answers[f.key] as string) !== '' ? (answers[f.key] as string) : (f.default ?? '')])),
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const fields = screen.fields.filter((f) => isVisible(f.showIf, { ...answers, ...values }));
+  const context = { ...answers, ...values };
+  const fields = screen.fields.filter((f) => isVisible(f.showIf, context));
 
   // Persist only fields currently visible, so values hidden by showIf are never written.
   const visibleValues = () => Object.fromEntries(fields.map((f) => [f.key, values[f.key] ?? '']));
@@ -42,9 +43,9 @@ export function ScreenView({ screen, answers, persist, next, back, saving, readO
   return (
     <form onSubmit={onSubmit} className="step" noValidate>
       <h1>{screen.title}</h1>
-      <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+      <fieldset className="fields" disabled={readOnly}>
       {fields.map((f) => (
-        <FieldInput key={f.key} field={f} value={values[f.key] ?? ''} error={errors[f.key]} dependsValue={f.dependsOn ? values[f.dependsOn] : undefined} onChange={(v) => setValues((s) => clearDependents(screen.fields, { ...s, [f.key]: v }, f.key))} />
+        <FieldInput key={f.key} field={f} value={values[f.key] ?? ''} error={errors[f.key]} context={context} dependsValue={f.dependsOn ? values[f.dependsOn] : undefined} onChange={(v) => setValues((s) => clearDependents(screen.fields, { ...s, [f.key]: v }, f.key))} />
       ))}
       </fieldset>
       <div className="actions">

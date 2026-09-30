@@ -1,97 +1,71 @@
-import { useEffect, useState } from 'react';
-import type { Field } from '@/lib/form/types';
-import { splitMulti } from '@/lib/form/visibility';
+import { useState } from 'react';
+import { selectVariant } from '@/lib/form/controls';
+import type { Answers, Field } from '@/lib/form/types';
+import { dateBounds, fieldWarnings } from '@/lib/form/zod';
+import { ChipsField } from './ChipsField';
+import { CityField, DepartmentField } from './ColombiaFields';
+import { DateField } from './DateField';
+import { FieldShell, idsFor, type ControlA11y } from './FieldShell';
+import { SegmentedField } from './SegmentedField';
+import { SelectField } from './SelectField';
 
-interface Props { field: Field; value: string; error?: string; onChange: (v: string) => void; idPrefix?: string; dependsValue?: string }
-
-type ColombiaData = typeof import('@/lib/data/colombia');
-
-/** phase-2 will replace: plain select fed by the Colombia dataset, loaded lazily (separate chunk). */
-function ColombiaSelect({ field, common, meta, label, err, dependsValue, onChange }: {
-  field: Field; common: Record<string, unknown>; meta: Record<string, string>; label: React.ReactNode; err: React.ReactNode; dependsValue?: string; onChange: (v: string) => void;
-}) {
-  const [data, setData] = useState<ColombiaData | null>(null);
-  useEffect(() => { let on = true; import('@/lib/data/colombia').then((m) => { if (on) setData(m); }); return () => { on = false; }; }, []);
-  const list = !data ? [] : field.type === 'co_department' ? data.COLOMBIA_DEPARTMENTS : data.citiesOf(dependsValue ?? '');
-  return (
-    <div className="field">
-      <label htmlFor={common.id as string}>{label}</label>
-      <select {...common} {...meta} disabled={!data} onChange={(e) => onChange(e.target.value)}>
-        <option value="">{data ? 'Selecciona…' : 'Cargando…'}</option>
-        {list.map((n) => <option key={n} value={n}>{n}</option>)}
-      </select>
-      {err}
-    </div>
-  );
+interface Props {
+  field: Field;
+  value: string;
+  error?: string;
+  onChange: (v: string) => void;
+  /** Scopes DOM ids for repeat entries, whose field keys repeat. */
+  idPrefix?: string;
+  /** Value of `field.dependsOn` (the department for a city). */
+  dependsValue?: string;
+  /** Answers the field is checked against (date bounds from `after`, warnings). */
+  context?: Answers;
 }
 
-export function FieldInput({ field, value, error, onChange, idPrefix = '', dependsValue }: Props) {
+const YES_NO = [{ value: 'yes', label: 'Sí' }, { value: 'no', label: 'No' }];
+const INPUTS = {
+  text: { type: 'text' },
+  tel: { type: 'tel', inputMode: 'tel' as const, autoComplete: 'tel' },
+  email: { type: 'email', inputMode: 'email' as const, autoComplete: 'email' },
+  number: { type: 'text', inputMode: 'decimal' as const },
+};
+
+/** Dispatches a field definition to its control inside the shared label/hint/error layout. */
+export function FieldInput({ field, value, error, onChange, idPrefix = '', dependsValue, context = {} }: Props) {
+  const [today] = useState(() => new Date());
   const id = `f-${idPrefix}${field.key}`;
-  const common = { id, value, 'aria-invalid': !!error, 'aria-describedby': error ? `${id}-err` : undefined };
-  const err = error && <span id={`${id}-err`} className="error" role="alert">{error}</span>;
+  const ids = idsFor(id);
+  const warnings = field.type === 'date' ? fieldWarnings(field, value, context, today) : [];
+  const describedBy = [field.hint && ids.hint, warnings.length > 0 && ids.warn, error && ids.err].filter(Boolean).join(' ') || undefined;
+  const a11y: ControlA11y = { id, labelId: ids.label, describedBy, invalid: !!error };
   const label = <>{field.label}{!field.required && <span className="muted"> (opcional)</span>}</>;
   const meta = { 'data-field': field.key, 'data-type': field.type };
-
-  if (field.type === 'yesno') {
-    return (
-      <fieldset className="field" {...meta}>
-        <legend>{label}</legend>
-        <div className="choices" role="radiogroup">
-          {([['yes', 'Sí'], ['no', 'No']] as const).map(([v, l]) => (
-            <button key={v} type="button" role="radio" aria-checked={value === v} className={`choice${value === v ? ' on' : ''}`} onClick={() => onChange(v)}>{l}</button>
-          ))}
-        </div>
-        {err}
-      </fieldset>
-    );
-  }
-  if (field.type === 'multiselect') {
-    // phase-2 will replace this temporary checkbox list
-    const selected = splitMulti(value);
-    const toggle = (v: string) => onChange((selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v]).join(','));
-    return (
-      <fieldset className="field" {...meta}>
-        <legend>{label}</legend>
-        {field.options?.map((o) => (
-          <label key={o.value}><input type="checkbox" checked={selected.includes(o.value)} onChange={() => toggle(o.value)} /> {o.label}</label>
-        ))}
-        {err}
-      </fieldset>
-    );
-  }
-  if (field.type === 'co_department' || field.type === 'co_city') {
-    return <ColombiaSelect field={field} common={common} meta={meta} label={label} err={err} dependsValue={dependsValue} onChange={onChange} />;
-  }
-  if (field.type === 'select') {
-    return (
-      <div className="field">
-        <label htmlFor={id}>{label}</label>
-        <select {...common} {...meta} onChange={(e) => onChange(e.target.value)}>
-          <option value="">Selecciona…</option>
-          {field.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        {err}
-      </div>
-    );
-  }
-  if (field.type === 'textarea') {
-    return (
-      <div className="field">
-        <label htmlFor={id}>{label}</label>
-        <textarea {...common} {...meta} onChange={(e) => onChange(e.target.value)} />
-        {err}
-      </div>
-    );
-  }
-  const input = {
-    text: { type: 'text' }, tel: { type: 'tel', inputMode: 'tel' as const }, email: { type: 'email', inputMode: 'email' as const, autoComplete: 'email' },
-    date: { type: 'date' }, number: { type: 'text', inputMode: 'decimal' as const },
-  }[field.type];
-  return (
-    <div className="field">
-      <label htmlFor={id}>{label}</label>
-      <input {...common} {...meta} {...input} onChange={(e) => onChange(e.target.value)} />
-      {err}
-    </div>
+  const shell = (group: boolean, control: React.ReactNode) => (
+    <FieldShell a11y={a11y} label={label} hint={field.hint} error={error} warnings={warnings} group={group}>{control}</FieldShell>
   );
+
+  switch (field.type) {
+    case 'yesno':
+      return shell(true, <SegmentedField fieldKey={field.key} type="yesno" options={YES_NO} value={value} onChange={onChange} a11y={a11y} />);
+    case 'select':
+      return selectVariant(field) === 'segmented'
+        ? shell(true, <SegmentedField fieldKey={field.key} type="select" options={field.options ?? []} value={value} onChange={onChange} a11y={a11y} />)
+        : shell(false, <SelectField fieldKey={field.key} type="select" options={field.options ?? []} value={value} onChange={onChange} a11y={a11y} />);
+    case 'multiselect':
+      return shell(true, <ChipsField fieldKey={field.key} options={field.options ?? []} value={value} onChange={onChange} a11y={a11y} />);
+    case 'date':
+      return shell(true, <DateField fieldKey={field.key} value={value} bounds={dateBounds(field, context, today)} today={today} onChange={onChange} a11y={a11y} />);
+    case 'co_department':
+      return shell(false, <DepartmentField fieldKey={field.key} value={value} onChange={onChange} a11y={a11y} />);
+    case 'co_city':
+      return shell(false, <CityField fieldKey={field.key} value={value} onChange={onChange} a11y={a11y} department={dependsValue} />);
+    case 'textarea':
+      return shell(false, (
+        <textarea id={id} className="control" value={value} placeholder={field.placeholder} aria-invalid={!!error} aria-describedby={describedBy} {...meta} onChange={(e) => onChange(e.target.value)} />
+      ));
+    default:
+      return shell(false, (
+        <input id={id} className="control" value={value} placeholder={field.placeholder} aria-invalid={!!error} aria-describedby={describedBy} {...meta} {...INPUTS[field.type]} onChange={(e) => onChange(e.target.value)} />
+      ));
+  }
 }

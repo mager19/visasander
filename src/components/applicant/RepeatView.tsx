@@ -33,16 +33,16 @@ export function RepeatView({ screen, answers, persist, next, back, saving, readO
   return (
     <form onSubmit={onSubmit} className="step" noValidate>
       <h1>{screen.title}</h1>
-      <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+      <fieldset className="fields" disabled={readOnly}>
       <div className="field">
         <button type="button" role="checkbox" aria-checked={none} className={`choice${none ? ' on' : ''}`} onClick={() => setNone((n) => !n)}>Ninguno / No aplica</button>
       </div>
       {!none && entries.map((entry, i) => (
-        <div className="card" key={i} style={{ marginBottom: 16 }}>
+        <div className="card entry" key={i}>
           <p className="eyebrow">Registro {i + 1}</p>
           {screen.fields.map((f) => (
             // Field keys repeat per entry, so scope the DOM id by entry index.
-            <FieldInput key={f.key} field={f} idPrefix={`${key}-${i}-`} value={entry[f.key] ?? ''} error={errors[i]?.[f.key]} onChange={(v) => setValue(i, f.key, v)} />
+            <FieldInput key={f.key} field={f} idPrefix={`${key}-${i}-`} value={entry[f.key] ?? ''} error={errors[i]?.[f.key]} context={entry} onChange={(v) => setValue(i, f.key, v)} />
           ))}
           {entries.length > 1 && <button type="button" className="btn btn-ghost" onClick={() => setEntries((l) => l.filter((_, j) => j !== i))}>Quitar</button>}
         </div>
