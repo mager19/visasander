@@ -65,7 +65,7 @@ export function FieldInput({ field, value, error, onChange, idPrefix = '', depen
       ));
     default:
       return shell(false, (
-        <input id={id} className="control" value={value} placeholder={field.placeholder} aria-invalid={!!error} aria-describedby={describedBy} {...meta} {...INPUTS[field.type]} onChange={(e) => onChange(e.target.value)} />
+        <input id={id} className="control" value={value} placeholder={field.placeholder} aria-invalid={!!error} aria-describedby={describedBy} {...meta} {...INPUTS[field.type]} {...(field.digits && { inputMode: 'numeric' as const })} onChange={(e) => onChange(e.target.value)} />
       ));
   }
 }
