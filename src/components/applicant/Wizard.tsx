@@ -22,6 +22,7 @@ export function Wizard({ token, initial }: { token: string; initial: ApplicantSt
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const [reviewed, setReviewed] = useState(initial.status === 'reviewed');
+  const [unauthorized, setUnauthorized] = useState(false);
 
   const step = steps[Math.min(index, steps.length - 1)];
   const progress = useMemo(() => computeProgress(answers, files.map((f) => f.kind)), [answers, files]);
@@ -31,6 +32,8 @@ export function Wizard({ token, initial }: { token: string; initial: ApplicantSt
   async function persist(patch: Answers): Promise<boolean> {
     setSaving(true);
     setSaveError(false);
+    setReviewed(false);
+    setUnauthorized(false);
     const result = await saveAnswers(token, patch);
     setSaving(false);
     if (result === 'ok') {
@@ -38,6 +41,7 @@ export function Wizard({ token, initial }: { token: string; initial: ApplicantSt
       return true;
     }
     if (result === 'reviewed') setReviewed(true);
+    else if (result === 'unauthorized') setUnauthorized(true);
     else setSaveError(true);
     return false;
   }
@@ -45,6 +49,12 @@ export function Wizard({ token, initial }: { token: string; initial: ApplicantSt
   return (
     <div className="shell">
       {reviewed && <div className="notice" role="alert">Tu gestor ya revisó tu información. Escríbele si necesitas hacer cambios.</div>}
+      {unauthorized && (
+        <div className="notice" role="alert">
+          <p>Tu sesión terminó. Vuelve a ingresar con tu código.</p>
+          <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>Ingresar de nuevo</button>
+        </div>
+      )}
       <ProgressBar percent={progress.percent} />
       {saveError && <div className="notice" role="alert">No pudimos guardar. Revisa tu conexión e inténtalo de nuevo.</div>}
       <main className="step" data-step={step.kind} key={`${step.kind}-${index}`}>
@@ -60,8 +70,8 @@ export function Wizard({ token, initial }: { token: string; initial: ApplicantSt
           </>
         )}
         {step.kind === 'screen' && (step.screen.repeat
-          ? <RepeatView screen={step.screen} answers={answers} persist={persist} next={next} back={back} saving={saving} />
-          : <ScreenView screen={step.screen} answers={answers} persist={persist} next={next} back={back} saving={saving} />)}
+          ? <RepeatView screen={step.screen} answers={answers} persist={persist} next={next} back={back} saving={saving} readOnly={reviewed} />
+          : <ScreenView screen={step.screen} answers={answers} persist={persist} next={next} back={back} saving={saving} readOnly={reviewed} />)}
         {step.kind === 'files' && <p>Archivos (Task 11)</p>}
         {step.kind === 'review' && <p>Revisión (Task 11)</p>}
       </main>

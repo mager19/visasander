@@ -8,15 +8,16 @@ export interface ApplicantState {
   files: { id: string; kind: string }[];
 }
 
-/** 'reviewed' = the manager already reviewed the application (HTTP 409); edits are locked. */
-export type MutationResult = 'ok' | 'reviewed' | 'error';
+/** 'reviewed' = the manager already reviewed the application (HTTP 409); edits are locked. 'unauthorized' = session ended (HTTP 401). */
+export type MutationResult = 'ok' | 'reviewed' | 'unauthorized' | 'error';
 
 const base = (token: string) => `/api/s/${token}`;
 const headers = { 'content-type': 'application/json' };
 
 function toResult(r: Response): MutationResult {
   if (r.ok) return 'ok';
-  return r.status === 409 ? 'reviewed' : 'error';
+  if (r.status === 409) return 'reviewed';
+  return r.status === 401 ? 'unauthorized' : 'error';
 }
 
 export async function fetchState(token: string): Promise<ApplicantState | null> {

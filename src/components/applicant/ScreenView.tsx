@@ -12,31 +12,39 @@ interface Props {
   next: () => void;
   back: () => void;
   saving: boolean;
+  readOnly: boolean;
 }
 
-export function ScreenView({ screen, answers, persist, next, back, saving }: Props) {
+export function ScreenView({ screen, answers, persist, next, back, saving, readOnly }: Props) {
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(screen.fields.map((f) => [f.key, typeof answers[f.key] === 'string' ? (answers[f.key] as string) : ''])),
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const fields = screen.fields.filter((f) => isVisible(f.showIf, { ...answers, ...values }));
 
+  // Persist only fields currently visible, so values hidden by showIf are never written.
+  const visibleValues = () => Object.fromEntries(fields.map((f) => [f.key, values[f.key] ?? '']));
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (readOnly) return next();
     const errs = validateFields(fields, values, answers);
     setErrors(errs);
-    if (Object.keys(errs).length === 0 && (await persist(values))) next();
+    if (Object.keys(errs).length === 0 && (await persist(visibleValues()))) next();
   }
   async function skip() {
-    if (await persist(values)) next();
+    if (readOnly) return next();
+    if (await persist(visibleValues())) next();
   }
 
   return (
     <form onSubmit={onSubmit} className="step" noValidate>
       <h1>{screen.title}</h1>
+      <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       {fields.map((f) => (
         <FieldInput key={f.key} field={f} value={values[f.key] ?? ''} error={errors[f.key]} onChange={(v) => setValues((s) => ({ ...s, [f.key]: v }))} />
       ))}
+      </fieldset>
       <div className="actions">
         <button className="btn btn-primary" disabled={saving}>Siguiente</button>
         <button type="button" className="btn btn-ghost" onClick={skip} disabled={saving}>Saltar por ahora</button>

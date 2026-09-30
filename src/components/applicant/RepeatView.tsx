@@ -5,9 +5,9 @@ import { validateFields } from '@/lib/form/validate';
 import { FieldInput } from './FieldInput';
 
 type Entry = Record<string, string>;
-interface Props { screen: Screen; answers: Answers; persist: (patch: Answers) => Promise<boolean>; next: () => void; back: () => void; saving: boolean }
+interface Props { screen: Screen; answers: Answers; persist: (patch: Answers) => Promise<boolean>; next: () => void; back: () => void; saving: boolean; readOnly: boolean }
 
-export function RepeatView({ screen, answers, persist, next, back, saving }: Props) {
+export function RepeatView({ screen, answers, persist, next, back, saving, readOnly }: Props) {
   const { key, addLabel } = screen.repeat!;
   const [none, setNone] = useState(answers[`${key}__none`] === true);
   const [entries, setEntries] = useState<Entry[]>(() => (Array.isArray(answers[key]) && (answers[key] as Entry[]).length ? (answers[key] as Entry[]) : [{}]));
@@ -18,6 +18,7 @@ export function RepeatView({ screen, answers, persist, next, back, saving }: Pro
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (readOnly) return next();
     if (!none) {
       const errs = entries.map((entry) => validateFields(screen.fields, entry, {}));
       setErrors(errs);
@@ -29,6 +30,7 @@ export function RepeatView({ screen, answers, persist, next, back, saving }: Pro
   return (
     <form onSubmit={onSubmit} className="step" noValidate>
       <h1>{screen.title}</h1>
+      <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <div className="field">
         <button type="button" role="checkbox" aria-checked={none} className={`choice${none ? ' on' : ''}`} onClick={() => setNone((n) => !n)}>Ninguno / No aplica</button>
       </div>
@@ -43,9 +45,10 @@ export function RepeatView({ screen, answers, persist, next, back, saving }: Pro
         </div>
       ))}
       {!none && entries.length < 20 && <button type="button" className="btn btn-ghost" onClick={() => setEntries((l) => [...l, {}])}>{addLabel}</button>}
+      </fieldset>
       <div className="actions">
         <button className="btn btn-primary" disabled={saving}>Siguiente</button>
-        <button type="button" className="btn btn-ghost" onClick={async () => { if (await save()) next(); }} disabled={saving}>Saltar por ahora</button>
+        <button type="button" className="btn btn-ghost" onClick={async () => { if (readOnly || (await save())) next(); }} disabled={saving}>Saltar por ahora</button>
         <button type="button" className="btn btn-ghost" onClick={back}>Atrás</button>
       </div>
     </form>
