@@ -74,12 +74,15 @@ export async function submitApplication(id: string): Promise<void> {
   await sql()`update applications set status = 'submitted', submitted_at = now(), updated_at = now() where id = ${id} and status in ('created', 'in_progress')`;
 }
 
-export async function markReviewed(id: string): Promise<void> {
-  await sql()`update applications set status = 'reviewed', reviewed_at = now(), updated_at = now() where id = ${id}`;
+/** Only a submitted application can be reviewed. Returns false when no row matched (missing id or wrong status). */
+export async function markReviewed(id: string): Promise<boolean> {
+  const rows = await sql()`update applications set status = 'reviewed', reviewed_at = now(), updated_at = now() where id = ${id} and status = 'submitted' returning id`;
+  return rows.length > 0;
 }
 
-export async function reopenApplication(id: string): Promise<void> {
-  await sql()`update applications set status = 'submitted', reviewed_at = null, updated_at = now() where id = ${id} and status = 'reviewed'`;
+export async function reopenApplication(id: string): Promise<boolean> {
+  const rows = await sql()`update applications set status = 'submitted', reviewed_at = null, updated_at = now() where id = ${id} and status = 'reviewed' returning id`;
+  return rows.length > 0;
 }
 
 export async function claimAttempt(id: string): Promise<number | null> {
@@ -96,23 +99,38 @@ export async function resetAttempts(id: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-export async function regenerateCode(id: string): Promise<string> {
+/**
+ * Replaces the access code and drops every session in ONE statement (data-modifying CTE), so a failure can never
+ * leave a new code with live old sessions. Both CTEs always run to completion even though the outer select only
+ * reads `upd`. Returns the new code, or null when the application does not exist.
+ */
+export async function regenerateCode(id: string): Promise<string | null> {
   const code = generateAccessCode();
-  await sql()`update applications set code_hash = ${hashAccessCode(id, code)}, failed_attempts = 0, locked = false where id = ${id}`;
-  await sql()`delete from sessions where application_id = ${id}`;
-  return code;
+  const rows = await sql()`
+    with upd as (
+      update applications set code_hash = ${hashAccessCode(id, code)}, failed_attempts = 0, locked = false where id = ${id} returning id
+    ), del as (
+      delete from sessions where application_id in (select id from upd) returning application_id
+    )
+    select id from upd`;
+  return rows.length > 0 ? code : null;
 }
 
-export async function unlockApplication(id: string): Promise<void> {
-  await sql()`update applications set failed_attempts = 0, locked = false where id = ${id}`;
+export async function unlockApplication(id: string): Promise<boolean> {
+  const rows = await sql()`update applications set failed_attempts = 0, locked = false where id = ${id} returning id`;
+  return rows.length > 0;
 }
 
-export async function setNotes(id: string, notes: string): Promise<void> {
-  await sql()`update applications set manager_notes = ${notes.slice(0, 5000)} where id = ${id}`;
+export async function setNotes(id: string, notes: string): Promise<boolean> {
+  // eslint-disable-next-line no-control-regex
+  const clean = notes.replace(/\u0000/g, '').slice(0, 5000);
+  const rows = await sql()`update applications set manager_notes = ${clean} where id = ${id} returning id`;
+  return rows.length > 0;
 }
 
-export async function extendExpiry(id: string, days: number): Promise<void> {
-  await sql()`update applications set expires_at = greatest(expires_at, now()) + make_interval(days => ${days}::int) where id = ${id}`;
+export async function extendExpiry(id: string, days: number): Promise<boolean> {
+  const rows = await sql()`update applications set expires_at = greatest(expires_at, now()) + make_interval(days => ${days}::int) where id = ${id} returning id`;
+  return rows.length > 0;
 }
 
 export async function deleteApplication(id: string): Promise<void> {

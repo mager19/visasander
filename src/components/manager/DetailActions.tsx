@@ -24,6 +24,7 @@ export function DetailActions({ id, locked, status, initialNotes }: Props) {
     try {
       const r = await fetch(`/api/manager/applications/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       if (r.status === 401) { window.location.href = mp('/login'); return; }
+      if (r.status === 409) { setMessage({ kind: 'error', text: 'Solo se puede marcar como revisada una solicitud ya enviada.' }); return; }
       if (!r.ok) { setMessage({ kind: 'error', text: GENERIC_ERROR }); return; }
       const data = await r.json().catch(() => ({}));
       if (data.code) setNewCode(data.code);
@@ -62,8 +63,9 @@ export function DetailActions({ id, locked, status, initialNotes }: Props) {
         {locked && <button className="btn btn-ghost" disabled={busy} onClick={() => act({ action: 'unlock' }, 'Solicitud desbloqueada')}>Desbloquear</button>}
         <button className="btn btn-ghost" disabled={busy} onClick={() => { setConfirmDelete(false); setConfirmRegenerate(true); }}>Regenerar código</button>
         <button className="btn btn-ghost" disabled={busy} onClick={() => act({ action: 'extend', days: 30 }, 'Vencimiento extendido 30 días')}>Extender 30 días</button>
-        {status !== 'reviewed' && <button className="btn btn-primary" style={{ width: 'auto' }} disabled={busy} onClick={() => act({ action: 'reviewed' }, 'Marcada como revisada')}>Marcar como revisada</button>}
+        {status === 'submitted' && <button className="btn btn-primary" style={{ width: 'auto' }} disabled={busy} onClick={() => act({ action: 'reviewed' }, 'Marcada como revisada')}>Marcar como revisada</button>}
       </div>
+      {(status === 'created' || status === 'in_progress') && <p className="muted" style={{ margin: 0 }}>Disponible cuando el cliente envíe su información.</p>}
       {confirmRegenerate && (
         <div style={{ display: 'grid', gap: 8 }}>
           <p style={{ margin: 0 }}>Esto invalida el código actual y cierra las sesiones del cliente.</p>

@@ -24,5 +24,11 @@ export function validateUpload(kind: string, mime: string, size: number): null |
 export const buildObjectKey = (applicationId: string, kind: FileKind, mime: string): string =>
   `apps/${applicationId}/${kind}/${randomUUID()}.${EXT[mime]}`;
 
+/** Download name built from trusted values only (kind + mime), never from client input. */
+export const downloadFilename = (kind: string, mime: string): string => {
+  const base = kind.replace(/[^A-Za-z0-9_-]/g, '') || 'file';
+  return `${base}.${EXT[mime] ?? 'bin'}`;
+};
+
 export const ownsKey = (applicationId: string, key: string): boolean =>
   key.startsWith(`apps/${applicationId}/`) && !key.includes('..');

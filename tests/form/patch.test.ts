@@ -13,6 +13,14 @@ describe('sanitizePatch', () => {
     expect(sanitizePatch({ hacked: 'x' })).toBeNull();
     expect(sanitizePatch({ __proto__x: 'x' })).toBeNull();
   });
+  it('rejects prototype-style keys even when they are real own keys', () => {
+    expect(sanitizePatch(JSON.parse('{"__proto__":"x"}'))).toBeNull();
+    expect(sanitizePatch(JSON.parse('{"constructor":"x"}'))).toBeNull();
+  });
+  it('rejects NUL characters in strings and repeat sub-values', () => {
+    expect(sanitizePatch({ apellidos: 'Pe\u0000rez' })).toBeNull();
+    expect(sanitizePatch({ redes_sociales: [{ plataforma: 'IG', usuario: 'a\u0000na' }] })).toBeNull();
+  });
   it('rejects wrong types', () => {
     expect(sanitizePatch({ apellidos: 5 })).toBeNull();
     expect(sanitizePatch({ redes_sociales__none: 'yes' })).toBeNull();

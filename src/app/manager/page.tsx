@@ -4,13 +4,13 @@ import { LogoutButton } from '@/components/manager/LogoutButton';
 import { NewApplication } from '@/components/manager/NewApplication';
 import { computeProgress } from '@/lib/form/progress';
 import { isManager } from '@/lib/manager-auth';
+import { MAX_ATTEMPTS } from '@/lib/constants';
 import { mp } from '@/lib/paths';
 import { listApplications } from '@/lib/repo/applications';
 import { allFileKinds } from '@/lib/repo/files';
+import { STATUS_LABEL } from '@/lib/status';
 
 export const dynamic = 'force-dynamic';
-
-const STATUS_LABEL = { created: 'Creada', in_progress: 'En progreso', submitted: 'Enviada', reviewed: 'Revisada' } as const;
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ q?: string; status?: string }> }) {
   if (!(await isManager())) redirect(mp('/login'));
@@ -42,7 +42,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
           return (
             <li key={a.id} className="card">
               <Link href={mp(`/${a.id}`)} style={{ textDecoration: 'none' }}><h2 style={{ margin: 0 }}>{a.clientName}</h2></Link>
-              <p className="eyebrow">{a.shortId} · <span className="pill">{STATUS_LABEL[a.status]}</span>{a.locked && <> · <span className="pill">Bloqueada</span></>}</p>
+              <p className="eyebrow">{a.shortId} · <span className="pill">{STATUS_LABEL[a.status]}</span>{(a.locked || a.failedAttempts >= MAX_ATTEMPTS) && <> · <span className="pill">Bloqueada</span></>}</p>
               <div className="progress" role="progressbar" aria-valuenow={p.percent} aria-valuemin={0} aria-valuemax={100} aria-label={`Avance de ${a.clientName}`}><span style={{ width: `${p.percent}%` }} /></div>
               <p className="muted" style={{ margin: '6px 0 0' }}>{p.percent}% · vence en {days} días</p>
             </li>

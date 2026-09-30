@@ -18,6 +18,7 @@ for (const ch of CHAPTERS) {
   }
 }
 
+const hasNul = (s: string): boolean => s.includes('\u0000');
 const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /** Returns a cleaned patch, or null if anything is unknown, mistyped, or oversized. */
@@ -29,7 +30,7 @@ export function sanitizePatch(input: unknown): Answers | null {
     const spec = SPECS.get(key);
     if (!spec) return null;
     if (spec.kind === 'text') {
-      if (typeof value !== 'string' || value.length > MAX_STRING) return null;
+      if (typeof value !== 'string' || value.length > MAX_STRING || hasNul(value)) return null;
       out[key] = value.trim();
     } else if (spec.kind === 'none') {
       if (typeof value !== 'boolean') return null;
@@ -41,7 +42,7 @@ export function sanitizePatch(input: unknown): Answers | null {
         if (!isPlainObject(entry)) return null;
         const clean: Record<string, string> = {};
         for (const [k, v] of Object.entries(entry)) {
-          if (!spec.fields.has(k) || typeof v !== 'string' || v.length > MAX_STRING) return null;
+          if (!spec.fields.has(k) || typeof v !== 'string' || v.length > MAX_STRING || hasNul(v)) return null;
           clean[k] = v.trim();
         }
         entries.push(clean);

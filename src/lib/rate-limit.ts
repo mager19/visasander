@@ -1,5 +1,10 @@
 import { sql } from './db';
 
+/** Drops windows that can no longer affect any limit. Called from the purge job. */
+export async function cleanupRateLimits(): Promise<void> {
+  await sql()`delete from rate_limits where window_start < now() - interval '1 day'`;
+}
+
 /** Returns true while the caller is still within `limit` hits per `windowSeconds`. */
 export async function hit(key: string, limit: number, windowSeconds: number): Promise<boolean> {
   const rows = await sql()`

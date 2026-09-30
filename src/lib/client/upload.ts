@@ -33,8 +33,9 @@ async function ensureOk(r: Response, fallback: string): Promise<void> {
 /** Downscales large photos before upload; falls back to the original if the browser can't decode it. */
 export async function compressImage(file: File, maxSide = 1600, quality = 0.8): Promise<Blob> {
   if (!file.type.startsWith('image/')) return file;
+  let bitmap: ImageBitmap | undefined;
   try {
-    const bitmap = await createImageBitmap(file);
+    bitmap = await createImageBitmap(file);
     const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(bitmap.width * scale);
@@ -43,6 +44,8 @@ export async function compressImage(file: File, maxSide = 1600, quality = 0.8): 
     return await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b ?? file), 'image/jpeg', quality));
   } catch {
     return file;
+  } finally {
+    bitmap?.close();
   }
 }
 
@@ -58,6 +61,8 @@ export async function uploadFile(token: string, kind: string, file: File): Promi
   });
   await withRetry(async () => {
     const r = await fetch(presign.uploadUrl, { method: 'PUT', headers: { 'content-type': mimeType }, body: blob });
+    // A 4xx from storage (expired URL, size/signature mismatch) cannot succeed on retry; 5xx and network errors can.
+    if (r.status >= 400 && r.status < 500) throw new NonRetryableError('upload_rejected');
     if (!r.ok) throw new Error('upload');
   });
   return withRetry(async () => {

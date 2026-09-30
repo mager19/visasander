@@ -19,7 +19,12 @@ export async function POST(req: Request, { params }: Ctx) {
   const existing = await getFileByKey(objectKey);
   if (existing) return existing.applicationId === r.application.id ? json({ id: existing.id }) : json({ error: 'invalid_key' }, 400);
 
-  const head = await headObject(objectKey);
+  let head: Awaited<ReturnType<typeof headObject>>;
+  try {
+    head = await headObject(objectKey);
+  } catch {
+    return json({ error: 'storage_unavailable' }, 503);
+  }
   if (!head) return json({ error: 'not_uploaded' }, 404);
 
   // The presigner does not sign Content-Type, so verify what was actually stored matches what was declared.

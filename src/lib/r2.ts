@@ -25,19 +25,27 @@ function client(): S3Client {
 export const presignPut = (key: string, contentType: string, size: number): Promise<string> =>
   getSignedUrl(client(), new PutObjectCommand({ Bucket: env('R2_BUCKET'), Key: key, ContentType: contentType, ContentLength: size }), { expiresIn: SIGNED_URL_TTL_SECONDS });
 
-export const presignGet = (key: string, filename?: string): Promise<string> =>
-  getSignedUrl(
+/** Keeps only [A-Za-z0-9._-] so the value is safe inside a quoted Content-Disposition filename. */
+export const sanitizeFilename = (name: string): string => name.replace(/[^A-Za-z0-9._-]/g, '');
+
+export const presignGet = (key: string, filename?: string): Promise<string> => {
+  const safe = filename ? sanitizeFilename(filename) : '';
+  return getSignedUrl(
     client(),
-    new GetObjectCommand({ Bucket: env('R2_BUCKET'), Key: key, ResponseContentDisposition: filename ? `attachment; filename="${filename}"` : undefined }),
+    new GetObjectCommand({ Bucket: env('R2_BUCKET'), Key: key, ResponseContentDisposition: safe ? `attachment; filename="${safe}"` : undefined }),
     { expiresIn: SIGNED_URL_TTL_SECONDS },
   );
+};
 
 export async function headObject(key: string): Promise<{ size: number; contentType: string } | null> {
   try {
     const r = await client().send(new HeadObjectCommand({ Bucket: env('R2_BUCKET'), Key: key }));
     return { size: r.ContentLength ?? 0, contentType: r.ContentType ?? '' };
-  } catch {
-    return null;
+  } catch (e) {
+    // Only a genuinely missing object is "null"; credential, network or throttling errors must surface.
+    const err = e as { name?: string; $metadata?: { httpStatusCode?: number } };
+    if (err.name === 'NotFound' || err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) return null;
+    throw e;
   }
 }
 

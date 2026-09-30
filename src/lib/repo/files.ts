@@ -19,6 +19,16 @@ export async function listFiles(applicationId: string): Promise<FileRow[]> {
   return (await sql()`select * from files where application_id = ${applicationId} order by uploaded_at`).map(toFile);
 }
 
+export async function countFilesByKind(applicationId: string, kind: string): Promise<number> {
+  const rows = await sql()`select count(*)::int as n from files where application_id = ${applicationId} and kind = ${kind}`;
+  return Number(rows[0].n);
+}
+
+export async function countFiles(applicationId: string): Promise<number> {
+  const rows = await sql()`select count(*)::int as n from files where application_id = ${applicationId}`;
+  return Number(rows[0].n);
+}
+
 export async function getFile(id: string): Promise<FileRow | null> {
   const rows = await sql()`select * from files where id = ${id}`;
   return rows[0] ? toFile(rows[0]) : null;

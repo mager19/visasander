@@ -64,7 +64,7 @@ describeDb('access service', () => {
     const r = await verifyAccess(application.token, code, 'ua');
     expect(r.ok).toBe(true);
     for (let i = 0; i < 5; i++) await verifyAccess(application.token, wrongFor(code), 'ua');
-    const newCode = await regenerateCode(application.id);
+    const newCode = (await regenerateCode(application.id))!;
     const fresh = (await getById(application.id))!;
     if (r.ok) expect(await authenticate(fresh, r.sessionToken)).toBe(false);
     expect((await verifyAccess(application.token, code, 'ua')).ok).toBe(code === newCode);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_FILE_BYTES, buildObjectKey, ownsKey, validateUpload } from '@/lib/files';
+import { MAX_FILE_BYTES, buildObjectKey, downloadFilename, ownsKey, validateUpload } from '@/lib/files';
 
 describe('validateUpload', () => {
   it('accepts allowed type/size combinations', () => {
@@ -27,5 +27,15 @@ describe('object keys', () => {
     expect(ownsKey('app-1', 'apps/app-2/passport/x.jpg')).toBe(false);
     expect(ownsKey('app-1', 'apps/app-1/../app-2/x.jpg')).toBe(false);
     expect(ownsKey('app-1', 'apps/app-10/x.jpg')).toBe(false);
+  });
+});
+
+describe('downloadFilename', () => {
+  it('builds a safe name from kind and mime', () => {
+    expect(downloadFilename('passport', 'image/jpeg')).toBe('passport.jpg');
+    expect(downloadFilename('national_id', 'application/pdf')).toBe('national_id.pdf');
+  });
+  it('never lets unexpected characters through', () => {
+    expect(downloadFilename('../we"ird\r\n', 'text/html')).toBe('weird.bin');
   });
 });

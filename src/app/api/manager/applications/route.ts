@@ -6,7 +6,7 @@ export async function POST(req: Request) {
   const denied = await requireManagerApi();
   if (denied) return denied;
   const body = (await req.json().catch(() => null)) as { clientName?: unknown } | null;
-  const clientName = typeof body?.clientName === 'string' ? body.clientName.trim().slice(0, 120) : '';
+  const clientName = typeof body?.clientName === 'string' ? body.clientName.replace(/\u0000/g, '').trim().slice(0, 120) : '';
   if (!clientName) return json({ error: 'name_required' }, 400);
   const { application, code } = await createApplication({ clientName });
   const origin = process.env.APP_URL ?? new URL(req.url).origin;

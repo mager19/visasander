@@ -1,4 +1,5 @@
 import { deleteObjects, listObjectKeys } from './r2';
+import { cleanupRateLimits } from './rate-limit';
 import { deleteApplication, listExpired } from './repo/applications';
 import { fileKeys } from './repo/files';
 
@@ -15,6 +16,11 @@ export async function deleteApplicationWithFiles(id: string, remove: Remove = de
 }
 
 export async function purgeExpired(remove: Remove = deleteObjects, list: List = listObjectKeys): Promise<{ purged: number; failed: number }> {
+  try {
+    await cleanupRateLimits();
+  } catch {
+    /* housekeeping only: must never affect the purge result */
+  }
   let purged = 0;
   let failed = 0;
   for (const app of await listExpired()) {
