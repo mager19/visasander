@@ -1,6 +1,7 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import type { Answers, Screen } from '@/lib/form/types';
+import { buildSkipPayload } from '@/lib/form/skip';
 import { validateFields } from '@/lib/form/validate';
 import { FieldInput } from './FieldInput';
 
@@ -14,11 +15,8 @@ export function RepeatView({ screen, answers, persist, next, back, saving, readO
   const [errors, setErrors] = useState<Record<string, string>[]>([]);
 
   const setValue = (i: number, k: string, v: string) => setEntries((list) => list.map((e, j) => (j === i ? { ...e, [k]: v } : e)));
-  // Drops values that fail validation (used when skipping) so the server never receives them.
-  const validOnly = (entry: Entry): Entry => {
-    const errs = validateFields(screen.fields, entry, {});
-    return Object.fromEntries(Object.entries(entry).filter(([k, v]) => !v?.trim() || !errs[k]));
-  };
+  // Invalid values are blanked when skipping so the server never receives them.
+  const validOnly = (entry: Entry): Entry => buildSkipPayload(screen.fields, entry, {});
   const save = (clean = false) => persist({ [key]: none ? [] : entries.map((e) => (clean ? validOnly(e) : e)).filter((e) => Object.values(e).some((v) => v?.trim())), [`${key}__none`]: none });
 
   async function onSubmit(e: FormEvent) {
