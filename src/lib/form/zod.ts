@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { COLOMBIA_DEPARTMENTS, isCityOf } from '@/lib/data/colombia';
 import type { Answers, Field } from './types';
 import { isVisible, splitMulti } from './visibility';
 
@@ -12,7 +11,19 @@ import { isVisible, splitMulti } from './visibility';
 export const MAX_TEXT = 2000;
 const MAX_NUMBER_DIGITS = 12;
 
+/**
+ * Membership checks for the Colombia lists. Injected by the server so this module never imports the
+ * (large) dataset; without it `co_department`/`co_city` only require a non-empty value, because the
+ * client UI picks from the lists.
+ */
+export interface ColombiaResolver {
+  isDepartment(name: string): boolean;
+  isCityOf(department: string, city: string): boolean;
+}
+
 export interface SchemaOptions {
+  /** Optional Colombia membership resolver (server only). */
+  colombia?: ColombiaResolver;
   /** Other answers, for cross-field rules (`after`, `dependsOn`). */
   context?: Answers;
   /** Injectable clock for date ranges. */
@@ -99,7 +110,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_CHARS = /^[+\d\s().-]+$/;
 const NUMBER = /^\d+([.,]\d+)?$/;
 
-function checkValue(field: Field, v: string, context: Answers, today: Date): string | null {
+function checkValue(field: Field, v: string, context: Answers, today: Date, colombia?: ColombiaResolver): string | null {
   switch (field.type) {
     case 'email':
       return EMAIL.test(v) ? null : 'Correo no válido';
@@ -113,10 +124,11 @@ function checkValue(field: Field, v: string, context: Answers, today: Date): str
     }
     case 'date': {
       if (!isRealDate(v)) return 'Fecha no válida';
-      const ref = field.after ? context[field.after] : undefined;
-      if (typeof ref === 'string' && ref.trim() && v <= ref.trim()) return field.afterMessage ?? 'Debe ser posterior a la fecha anterior';
-      const { min, max } = rangeBounds(field, today);
+      // Same bounds the UI pickers use; `after` is part of min (day after the referenced date).
+      const { min, max } = dateBounds(field, context, today);
       if (max && v > max) return field.range?.yearsForward === 0 ? 'La fecha no puede ser futura' : 'La fecha es demasiado lejana';
+      const after = afterMin(field, context);
+      if (after && v < after) return field.afterMessage ?? 'Debe ser posterior a la fecha anterior';
       if (min && v < min) return 'La fecha es demasiado antigua';
       return null;
     }
@@ -132,11 +144,11 @@ function checkValue(field: Field, v: string, context: Answers, today: Date): str
       return ok ? null : 'Opción no válida';
     }
     case 'co_department':
-      return COLOMBIA_DEPARTMENTS.includes(v) ? null : 'Departamento no válido';
+      return !colombia || colombia.isDepartment(v) ? null : 'Departamento no válido';
     case 'co_city': {
       const dep = field.dependsOn ? context[field.dependsOn] : undefined;
       if (typeof dep !== 'string' || !dep.trim()) return 'Selecciona primero el departamento';
-      return isCityOf(dep.trim(), v) ? null : 'Ciudad no válida para el departamento';
+      return !colombia || colombia.isCityOf(dep.trim(), v) ? null : 'Ciudad no válida para el departamento';
     }
     default:
       break;
@@ -161,7 +173,7 @@ export function fieldSchema(field: Field, opts: SchemaOptions = {}): z.ZodType<s
       const fail = (message: string) => ctx.addIssue({ code: 'custom', message });
       if (v === '') return emptyOk ? undefined : fail('Este campo es obligatorio');
       if (v.length > MAX_TEXT) return fail(`Máximo ${MAX_TEXT} caracteres`);
-      const msg = checkValue(field, v, context, today);
+      const msg = checkValue(field, v, context, today, opts.colombia);
       if (msg) fail(msg);
     });
 }

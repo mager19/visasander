@@ -63,3 +63,9 @@ export function citiesOf(department: string): readonly string[] {
 export function isCityOf(department: string, city: string): boolean {
   return citiesOf(department).includes(city);
 }
+
+/** Resolver for server-side validation (see ColombiaResolver in form/zod). */
+export const colombiaResolver = {
+  isDepartment: (name: string): boolean => COLOMBIA_DEPARTMENTS.includes(name),
+  isCityOf,
+};

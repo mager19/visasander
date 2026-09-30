@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { CHAPTERS } from '@/lib/form/schema';
 import type { Field } from '@/lib/form/types';
 import { validateFields, validateValue } from '@/lib/form/validate';
+import { colombiaResolver } from '@/lib/data/colombia';
 import { dateBounds, fieldSchema, fieldWarnings, isRealDate, screenSchema } from '@/lib/form/zod';
 
 const TODAY = new Date(2026, 8, 30); // 2026-09-30, local
 const allFields = CHAPTERS.flatMap((c) => c.screens.flatMap((s) => s.fields));
 const byKey = (key: string): Field => allFields.find((f) => f.key === key)!;
 const field = (o: Partial<Field>): Field => ({ key: 'k', label: 'K', type: 'text', required: true, ...o });
-const check = (f: Field, v: string, ctx = {}) => validateValue(f, v, ctx, TODAY);
+const check = (f: Field, v: string, ctx = {}) => validateValue(f, v, ctx, TODAY, colombiaResolver);
 
 describe('real calendar dates', () => {
   it.each([
@@ -159,6 +160,37 @@ describe('options, multiselect and Colombia lists', () => {
     expect(check(city, 'Medellín', { departamento_nacimiento: 'Antioquia' })).toBeNull();
     expect(check(city, 'Medellín', { departamento_nacimiento: 'Valle del Cauca' })).toBe('Ciudad no válida para el departamento');
     expect(check(city, 'Medellín', {})).toBe('Selecciona primero el departamento');
+  });
+});
+
+describe('Colombia resolver injection', () => {
+  it('without a resolver only requires a non-empty value (client side)', () => {
+    const dep = byKey('departamento_nacimiento');
+    const city = byKey('ciudad_nacimiento');
+    expect(validateValue(dep, 'Narnia', {}, TODAY)).toBeNull();
+    expect(validateValue(dep, '', {}, TODAY)).toBe('Este campo es obligatorio');
+    expect(validateValue(city, 'Cali', { departamento_nacimiento: 'Antioquia' }, TODAY)).toBeNull();
+    expect(validateValue(city, 'Cali', {}, TODAY)).toBe('Selecciona primero el departamento');
+  });
+  it('with the resolver checks membership', () => {
+    expect(validateValue(byKey('ciudad_nacimiento'), 'Cali', { departamento_nacimiento: 'Antioquia' }, TODAY, colombiaResolver)).toBe('Ciudad no válida para el departamento');
+  });
+});
+
+describe('date validation is built on dateBounds', () => {
+  const cases: [string, string, Record<string, string>][] = [
+    ['fecha_nacimiento', '1906-09-29', {}], ['fecha_nacimiento', '1906-09-30', {}], ['fecha_nacimiento', '2026-09-30', {}], ['fecha_nacimiento', '2026-10-01', {}],
+    ['pasaporte_expedicion', '2006-09-29', {}], ['pasaporte_expedicion', '2006-09-30', {}], ['pasaporte_expedicion', '2026-10-01', {}],
+    ['pasaporte_caducidad', '2020-01-01', { pasaporte_expedicion: '2020-01-01' }], ['pasaporte_caducidad', '2020-01-02', { pasaporte_expedicion: '2020-01-01' }],
+    ['pasaporte_caducidad', '2046-09-30', {}], ['pasaporte_caducidad', '2046-10-01', {}],
+    ['fin', '2020-05-01', { inicio: '2020-05-01' }], ['fin', '2020-05-02', { inicio: '2020-05-01' }],
+    ['inicio', '1966-09-29', {}], ['inicio', '1966-09-30', {}], ['empresa_inicio', '2026-10-01', {}], ['hasta', '2019-01-01', { desde: '2020-01-01' }],
+  ];
+  it.each(cases)('%s %s %j: outside bounds <=> rejected', (key, value, ctx) => {
+    const f = byKey(key);
+    const { min, max } = dateBounds(f, ctx, TODAY);
+    const outside = (min !== null && value < min) || (max !== null && value > max);
+    expect(check(f, value, ctx) !== null).toBe(outside);
   });
 });
 

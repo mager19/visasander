@@ -1,5 +1,6 @@
 import { CHAPTERS } from './schema';
 import type { Answers, Field } from './types';
+import { colombiaResolver } from '@/lib/data/colombia';
 import { fieldSchema } from './zod';
 
 const MAX_PATCH_BYTES = 50_000;
@@ -70,13 +71,16 @@ export function validatePatch(patch: Answers, stored: Answers, today: Date = new
   for (const [key, value] of Object.entries(patch)) {
     const flat = FLAT_FIELDS.get(key);
     if (flat) {
-      if (!fieldSchema(flat, { context: merged, today, allowEmpty: true }).safeParse(value).success) bad.push(key);
+      if (!fieldSchema(flat, { context: merged, today, allowEmpty: true, colombia: colombiaResolver }).safeParse(value).success) bad.push(key);
       continue;
     }
     const repeatFields = REPEAT_FIELDS.get(key);
     if (repeatFields && Array.isArray(value)) {
       const ok = (value as Record<string, string>[]).every((entry) =>
-        Object.entries(entry).every(([k, v]) => fieldSchema(repeatFields.get(k)!, { context: entry, today, allowEmpty: true }).safeParse(v).success),
+        Object.entries(entry).every(([k, v]) => {
+          const f = repeatFields.get(k);
+          return !!f && fieldSchema(f, { context: entry, today, allowEmpty: true, colombia: colombiaResolver }).safeParse(v).success;
+        }),
       );
       if (!ok) bad.push(key);
     }

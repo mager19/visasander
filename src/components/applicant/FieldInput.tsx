@@ -1,8 +1,29 @@
-import { citiesOf, COLOMBIA_DEPARTMENTS } from '@/lib/data/colombia';
+import { useEffect, useState } from 'react';
 import type { Field } from '@/lib/form/types';
 import { splitMulti } from '@/lib/form/visibility';
 
 interface Props { field: Field; value: string; error?: string; onChange: (v: string) => void; idPrefix?: string; dependsValue?: string }
+
+type ColombiaData = typeof import('@/lib/data/colombia');
+
+/** phase-2 will replace: plain select fed by the Colombia dataset, loaded lazily (separate chunk). */
+function ColombiaSelect({ field, common, meta, label, err, dependsValue, onChange }: {
+  field: Field; common: Record<string, unknown>; meta: Record<string, string>; label: React.ReactNode; err: React.ReactNode; dependsValue?: string; onChange: (v: string) => void;
+}) {
+  const [data, setData] = useState<ColombiaData | null>(null);
+  useEffect(() => { let on = true; import('@/lib/data/colombia').then((m) => { if (on) setData(m); }); return () => { on = false; }; }, []);
+  const list = !data ? [] : field.type === 'co_department' ? data.COLOMBIA_DEPARTMENTS : data.citiesOf(dependsValue ?? '');
+  return (
+    <div className="field">
+      <label htmlFor={common.id as string}>{label}</label>
+      <select {...common} {...meta} disabled={!data} onChange={(e) => onChange(e.target.value)}>
+        <option value="">{data ? 'Selecciona…' : 'Cargando…'}</option>
+        {list.map((n) => <option key={n} value={n}>{n}</option>)}
+      </select>
+      {err}
+    </div>
+  );
+}
 
 export function FieldInput({ field, value, error, onChange, idPrefix = '', dependsValue }: Props) {
   const id = `f-${idPrefix}${field.key}`;
@@ -39,18 +60,7 @@ export function FieldInput({ field, value, error, onChange, idPrefix = '', depen
     );
   }
   if (field.type === 'co_department' || field.type === 'co_city') {
-    // phase-2 will replace these temporary plain selects
-    const list = field.type === 'co_department' ? COLOMBIA_DEPARTMENTS : citiesOf(dependsValue ?? '');
-    return (
-      <div className="field">
-        <label htmlFor={id}>{label}</label>
-        <select {...common} {...meta} onChange={(e) => onChange(e.target.value)}>
-          <option value="">Selecciona…</option>
-          {list.map((n) => <option key={n} value={n}>{n}</option>)}
-        </select>
-        {err}
-      </div>
-    );
+    return <ColombiaSelect field={field} common={common} meta={meta} label={label} err={err} dependsValue={dependsValue} onChange={onChange} />;
   }
   if (field.type === 'select') {
     return (
