@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  breadcrumb, currentSectionId, entryTarget, indexOfStep, sectionOutline, stepKey, type OutlineEntry,
+  breadcrumb, createNavGuard, currentSectionId, entryTarget, indexOfStep, sectionOutline, stepKey, type OutlineEntry,
 } from '@/lib/form/navigation';
 import { buildSteps } from '@/lib/form/steps';
 import { ALL_REQUIRED_FILES, sampleAnswers } from '../helpers/sample-answers';
@@ -117,6 +117,42 @@ describe('sectionOutline', () => {
     const work = chapter(sectionOutline(steps, { ocupacion: 'desempleado' }, []), 'work');
     expect(work.screens.map((s) => s.id)).toEqual(['occupation', 'prev_jobs', 'education', 'languages', 'visited', 'orgs']);
     for (const s of work.screens) expect(stepKey(steps[s.stepIndex])).toBe(`screen:${s.id}`);
+  });
+});
+
+describe('createNavGuard', () => {
+  it('refuses a jump while a save (Siguiente / Saltar) is in flight', () => {
+    const g = createNavGuard();
+    g.saveStarted();
+    expect(g.busy()).toBe(true);
+    expect(g.beginJump()).toBe(false);
+    expect(g.jumping()).toBe(false);
+    g.saveEnded();
+    expect(g.busy()).toBe(false);
+    expect(g.beginJump()).toBe(true);
+  });
+  it('refuses a second jump and blocks next/back while a jump is in flight', () => {
+    const g = createNavGuard();
+    expect(g.beginJump()).toBe(true);
+    expect(g.jumping()).toBe(true);
+    expect(g.beginJump()).toBe(false);
+    // The jump's own flush save does not end the jump.
+    g.saveStarted();
+    g.saveEnded();
+    expect(g.jumping()).toBe(true);
+    g.endJump();
+    expect(g.jumping()).toBe(false);
+    expect(g.busy()).toBe(false);
+  });
+  it('counts overlapping saves', () => {
+    const g = createNavGuard();
+    g.saveStarted();
+    g.saveStarted();
+    g.saveEnded();
+    expect(g.beginJump()).toBe(false);
+    g.saveEnded();
+    g.saveEnded(); // never goes negative
+    expect(g.beginJump()).toBe(true);
   });
 });
 

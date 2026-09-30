@@ -8,6 +8,8 @@ interface Props {
   currentSectionId: string | null;
   currentIndex: number;
   onJump: (stepIndex: number) => void;
+  /** True while a save is in flight: rows cannot start a jump until it ends. */
+  disabled?: boolean;
   onClose: () => void;
   /** Receives focus back when the sheet closes. */
   returnFocus: RefObject<HTMLElement | null>;
@@ -37,7 +39,7 @@ function statusOf(entry: OutlineEntry, current: boolean): { text: string; tone: 
 }
 
 /** Bottom sheet listing every section (and its screens) so the applicant can jump anywhere. */
-export function SectionsSheet({ outline, currentSectionId, currentIndex, onJump, onClose, returnFocus }: Props) {
+export function SectionsSheet({ outline, currentSectionId, currentIndex, onJump, disabled = false, onClose, returnFocus }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
@@ -103,6 +105,7 @@ export function SectionsSheet({ outline, currentSectionId, currentIndex, onJump,
                     className="sheet-jump"
                     data-testid={`section-row-${entry.id}`}
                     aria-current={current ? 'true' : undefined}
+                    disabled={disabled}
                     onClick={() => onJump(entryTarget(entry))}
                   >
                     <span className="sheet-title">{entry.title}</span>
@@ -136,6 +139,7 @@ export function SectionsSheet({ outline, currentSectionId, currentIndex, onJump,
                             type="button"
                             className={`sheet-screen${here ? ' is-here' : ''}`}
                             aria-current={here ? 'step' : undefined}
+                            disabled={disabled}
                             onClick={() => onJump(s.stepIndex)}
                           >
                             <span className={`sheet-mark${s.complete ? ' is-done' : ''}`}>{s.complete ? <CheckIcon /> : <DotIcon filled={false} />}</span>

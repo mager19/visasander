@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { saveAnswers, type ApplicantState } from '@/lib/client/api';
-import { breadcrumb, currentSectionId, indexOfStep, sectionOutline, stepKey } from '@/lib/form/navigation';
+import { breadcrumb, createNavGuard, currentSectionId, indexOfStep, sectionOutline, stepKey } from '@/lib/form/navigation';
 import { computeProgress } from '@/lib/form/progress';
 import { buildSteps, firstIncompleteStep } from '@/lib/form/steps';
 import type { Answers } from '@/lib/form/types';
@@ -32,7 +32,7 @@ export function Wizard({ token, initial }: { token: string; initial: ApplicantSt
   const [sheetOpen, setSheetOpen] = useState(false);
   const sectionsButton = useRef<HTMLButtonElement>(null);
   const flushRef = useRef<(() => Promise<boolean>) | null>(null);
-  const jumping = useRef(false);
+  const [guard] = useState(createNavGuard);
   const registerFlush = useCallback((fn: (() => Promise<boolean>) | null) => { flushRef.current = fn; }, []);
 
   const current = Math.min(index, steps.length - 1);
@@ -41,27 +41,28 @@ export function Wizard({ token, initial }: { token: string; initial: ApplicantSt
   const progress = useMemo(() => computeProgress(answers, fileKinds), [answers, fileKinds]);
   const crumb = useMemo(() => breadcrumb(steps, current), [steps, current]);
   const outline = useMemo(() => (sheetOpen ? sectionOutline(steps, answers, fileKinds) : []), [sheetOpen, steps, answers, fileKinds]);
-  const next = () => setIndex((i) => Math.min(i + 1, steps.length - 1));
-  const back = () => setIndex((i) => Math.max(i - 1, 0));
+  // Siguiente / Saltar (both end in `next`) and Atrás never move the wizard while a jump is in flight.
+  const next = () => { if (!guard.jumping()) setIndex((i) => Math.min(i + 1, steps.length - 1)); };
+  const back = () => { if (!guard.jumping()) setIndex((i) => Math.max(i - 1, 0)); };
+  const openSheet = () => { if (!guard.busy()) setSheetOpen(true); };
 
   /**
    * Go to any step. A question screen first saves what was typed (same rules as "Saltar por ahora");
    * if that save fails, stay here (the notices explain why). The target is re-resolved by identity,
-   * because the save can show or hide screens and shift indexes.
+   * because the save can show or hide screens and shift indexes. A no-op while a save or another
+   * jump is in flight, so it can never race Siguiente / Saltar / Atrás.
    */
   async function jumpTo(stepIndex: number) {
     setSheetOpen(false);
-    if (jumping.current || stepIndex === current) return;
     const target = steps[stepIndex];
-    if (!target) return;
-    jumping.current = true;
+    if (stepIndex === current || !target || !guard.beginJump()) return;
     try {
       if (step.kind === 'screen' && !reviewed && flushRef.current && !(await flushRef.current())) return;
       const fresh = buildSteps(answersRef.current);
       const i = indexOfStep(fresh, stepKey(target));
       setIndex(i >= 0 ? i : Math.min(stepIndex, fresh.length - 1));
     } finally {
-      jumping.current = false;
+      guard.endJump();
     }
   }
   const goToChapter = (chapterId: string) => {
@@ -74,8 +75,14 @@ export function Wizard({ token, initial }: { token: string; initial: ApplicantSt
     setSaveError(false);
     setReviewed(false);
     setUnauthorized(false);
-    const result = await saveAnswers(token, patch);
-    setSaving(false);
+    guard.saveStarted();
+    let result: Awaited<ReturnType<typeof saveAnswers>>;
+    try {
+      result = await saveAnswers(token, patch);
+    } finally {
+      guard.saveEnded();
+      setSaving(false);
+    }
     if (result === 'ok') {
       answersRef.current = { ...answersRef.current, ...patch };
       setAnswers((a) => ({ ...a, ...patch }));
@@ -98,7 +105,7 @@ export function Wizard({ token, initial }: { token: string; initial: ApplicantSt
       )}
       <p className="eyebrow" style={{ margin: '0 0 8px' }}>ID {initial.shortId} · guárdalo para retomar</p>
       <ProgressBar percent={progress.percent} />
-      <Breadcrumb ref={sectionsButton} crumb={crumb} open={sheetOpen} onOpen={() => setSheetOpen(true)} />
+      <Breadcrumb ref={sectionsButton} crumb={crumb} open={sheetOpen} disabled={saving} onOpen={openSheet} />
       {saveError && <div className="notice" role="alert">No pudimos guardar. Revisa tu conexión e inténtalo de nuevo.</div>}
       <main className="step" data-step={step.kind} key={`${step.kind}-${index}`}>
         {step.kind === 'chapter' && (
@@ -124,6 +131,7 @@ export function Wizard({ token, initial }: { token: string; initial: ApplicantSt
           currentSectionId={currentSectionId(steps, current)}
           currentIndex={current}
           onJump={jumpTo}
+          disabled={saving}
           onClose={() => setSheetOpen(false)}
           returnFocus={sectionsButton}
         />

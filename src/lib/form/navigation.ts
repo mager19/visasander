@@ -104,6 +104,39 @@ export function entryTarget(entry: OutlineEntry): number {
   return entry.kind === 'chapter' ? (entry.firstIncompleteStepIndex ?? entry.firstStepIndex) : entry.stepIndex;
 }
 
+export interface NavGuard {
+  saveStarted(): void;
+  saveEnded(): void;
+  /** Starts a jump; false (and nothing starts) while a save or another jump is in flight. */
+  beginJump(): boolean;
+  endJump(): void;
+  /** True while a jump is in flight: Siguiente / Atrás / Saltar must not move the wizard. */
+  jumping(): boolean;
+  /** True while a save or a jump is in flight. */
+  busy(): boolean;
+}
+
+/**
+ * Makes wizard navigation mutually exclusive. Synchronous (unlike React state), so a jump and an
+ * in-flight Siguiente / Saltar / Atrás can never both move the index.
+ */
+export function createNavGuard(): NavGuard {
+  let saves = 0;
+  let jump = false;
+  return {
+    saveStarted: () => { saves += 1; },
+    saveEnded: () => { saves = Math.max(0, saves - 1); },
+    beginJump: () => {
+      if (jump || saves > 0) return false;
+      jump = true;
+      return true;
+    },
+    endJump: () => { jump = false; },
+    jumping: () => jump,
+    busy: () => jump || saves > 0,
+  };
+}
+
 /** Id of the outline entry that contains the step at `index`. */
 export function currentSectionId(steps: Step[], index: number): string | null {
   const step = steps[index];

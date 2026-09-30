@@ -142,6 +142,7 @@ a { color: inherit; }
   font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
 .sections-btn:hover { border-color: var(--ink); }
+.sections-btn[aria-disabled='true'], .sheet-jump:disabled, .sheet-screen:disabled { opacity: 0.5; cursor: not-allowed; }
 .sections-btn[aria-expanded='true'] { background: var(--ink); border-color: var(--ink); color: var(--white); }
 
 .sheet-root { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; justify-content: center; }
