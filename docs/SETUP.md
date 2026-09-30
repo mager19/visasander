@@ -41,3 +41,14 @@ Import the repo, add every variable from `.env.example` in Project Settings → 
 - `APP_URL` must be set in production (public origin, no trailing slash) because applicant links are built from it.
 - `npm run migrate` should print "Applied 7 statements".
 - Retention defaults to 90 days (`RETENTION_DAYS`; 60 is also allowed). The purge cron runs daily at 07:00 UTC (`0 7 * * *` in `vercel.json`) and deletes expired rows together with their R2 objects.
+
+## 7. Operations notes
+- **Rotating `APP_SECRET`** invalidates every access code and every session (codes and session tokens are hashed with it). Applicants need new codes via "Regenerar código" in the manager panel, and the manager must log in again.
+- **R2 lifecycle rule (recommended backstop):** in the bucket settings, add a rule that expires objects under the prefix `apps/` after `RETENTION_DAYS` + 30 days. It removes objects uploaded after an application was already deleted (presigned upload URLs live 300 s, so a late upload can outlive its row).
+
+## 8. Before real data (partner action, needs real credentials)
+None of the database or R2 code has been executed in development. Before any real applicant data:
+- [ ] Run `npm run migrate` on a DEV Neon branch (expect "Applied 7 statements").
+- [ ] Run the DB integration suites with `TEST_DATABASE_URL` set.
+- [ ] Run the credentialed e2e against a DEV R2 bucket.
+- [ ] Confirm R2 accepts the presigned PUT with the signed `content-length` plus the CORS rule, and `DeleteObjects` (used by delete and purge; a checksum-required operation). Then do one real upload, one delete and one purge.
