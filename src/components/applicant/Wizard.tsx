@@ -4,15 +4,15 @@ import { saveAnswers, type ApplicantState } from '@/lib/client/api';
 import { computeProgress } from '@/lib/form/progress';
 import { buildSteps, firstIncompleteStep } from '@/lib/form/steps';
 import type { Answers } from '@/lib/form/types';
+import { FileStep } from './FileStep';
 import { ProgressBar } from './ProgressBar';
 import { RepeatView } from './RepeatView';
+import { Review } from './Review';
 import { ScreenView } from './ScreenView';
 
 export function Wizard({ token, initial }: { token: string; initial: ApplicantState }) {
   const [answers, setAnswers] = useState<Answers>(initial.answers);
-  // setFiles is wired in Task 11 (files step).
   const [files, setFiles] = useState(initial.files);
-  void setFiles;
   const steps = useMemo(() => buildSteps(answers), [answers]);
   const done = initial.status === 'submitted' || initial.status === 'reviewed';
   const [index, setIndex] = useState(() => {
@@ -28,6 +28,10 @@ export function Wizard({ token, initial }: { token: string; initial: ApplicantSt
   const progress = useMemo(() => computeProgress(answers, files.map((f) => f.kind)), [answers, files]);
   const next = () => setIndex((i) => Math.min(i + 1, steps.length - 1));
   const back = () => setIndex((i) => Math.max(i - 1, 0));
+  const goToChapter = (chapterId: string) => {
+    const i = steps.findIndex((s) => s.kind === 'chapter' && s.chapter.id === chapterId);
+    if (i >= 0) setIndex(i);
+  };
 
   async function persist(patch: Answers): Promise<boolean> {
     setSaving(true);
@@ -72,8 +76,8 @@ export function Wizard({ token, initial }: { token: string; initial: ApplicantSt
         {step.kind === 'screen' && (step.screen.repeat
           ? <RepeatView screen={step.screen} answers={answers} persist={persist} next={next} back={back} saving={saving} readOnly={reviewed} />
           : <ScreenView screen={step.screen} answers={answers} persist={persist} next={next} back={back} saving={saving} readOnly={reviewed} />)}
-        {step.kind === 'files' && <p>Archivos (Task 11)</p>}
-        {step.kind === 'review' && <p>Revisión (Task 11)</p>}
+        {step.kind === 'files' && <FileStep token={token} files={files} onFilesChange={setFiles} next={next} back={back} readOnly={reviewed} />}
+        {step.kind === 'review' && <Review token={token} shortId={initial.shortId} answers={answers} files={files} goToChapter={goToChapter} back={back} readOnly={reviewed} />}
       </main>
     </div>
   );
