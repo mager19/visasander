@@ -11,10 +11,15 @@ export function LoginForm() {
     e.preventDefault();
     setBusy(true);
     setError('');
-    const r = await fetch('/api/manager/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password }) });
-    if (r.ok) { window.location.href = mp(); return; }
-    setError(r.status === 429 ? 'Demasiados intentos. Espera unos minutos.' : 'Contraseña incorrecta.');
-    setBusy(false);
+    try {
+      const r = await fetch('/api/manager/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password }) });
+      if (r.ok) { window.location.href = mp(); return; }
+      setError(r.status === 429 ? 'Demasiados intentos. Espera unos minutos.' : 'Contraseña incorrecta.');
+    } catch {
+      setError('No pudimos conectar. Inténtalo de nuevo.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

@@ -1,6 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
+import { mp } from '@/lib/paths';
 import { CopyButton } from './CopyButton';
 
 interface Created { shortId: string; link: string; code: string }
@@ -16,12 +17,18 @@ export function NewApplication() {
     e.preventDefault();
     setBusy(true);
     setError('');
-    const r = await fetch('/api/manager/applications', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ clientName: name }) });
-    setBusy(false);
-    if (!r.ok) return setError('No se pudo crear la solicitud.');
-    setCreated(await r.json());
-    setName('');
-    router.refresh();
+    try {
+      const r = await fetch('/api/manager/applications', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ clientName: name }) });
+      if (r.status === 401) { window.location.href = mp('/login'); return; }
+      if (!r.ok) { setError('No se pudo crear la solicitud.'); return; }
+      setCreated(await r.json());
+      setName('');
+      router.refresh();
+    } catch {
+      setError('No se pudo crear la solicitud.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   const whatsapp = created ? `https://wa.me/?text=${encodeURIComponent(`Hola, este es tu enlace para completar tu información de visa: ${created.link}\nTe envío el código de acceso por separado.`)}` : '';
