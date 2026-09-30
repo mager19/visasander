@@ -128,6 +128,39 @@ async function advance(page: Page, action: () => Promise<unknown>) {
 const isAnswersSave = (r: { url(): string; request(): { method(): string }; ok(): boolean }) =>
   r.url().includes('/answers') && r.request().method() === 'PATCH' && r.ok();
 
+/**
+ * Called on "Ocupación" with its fields filled but NOT submitted: the jump must save them first.
+ * Jumps back to "Información personal" and then to the section it came from, via the "Secciones" sheet.
+ */
+async function checkSectionNavigation(page: Page) {
+  const breadcrumb = page.getByTestId('breadcrumb');
+  const sheet = page.getByRole('dialog', { name: 'Secciones' });
+  await expect(breadcrumb).toContainText('Trabajo y estudios');
+  await expect(breadcrumb).toContainText('Ocupación');
+
+  await page.getByTestId('sections-button').click();
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByTestId('section-row-personal')).toContainText('Completa');
+  await expect(sheet.getByTestId('section-row-work')).toContainText('En curso');
+  // Leaving a question screen saves what was typed on it.
+  await advance(page, () => Promise.all([
+    page.waitForResponse(isAnswersSave),
+    sheet.getByTestId('section-row-personal').click(),
+  ]));
+  await expect(sheet).toBeHidden();
+  await expect(page.getByTestId('sections-button')).toBeFocused();
+  await expect(breadcrumb).toContainText('Información personal');
+  await expect(page.locator('main[data-step] h1')).toHaveText('Información personal');
+
+  await page.getByTestId('sections-button').click();
+  await expect(sheet.getByTestId('section-row-personal')).toContainText('En curso');
+  await advance(page, () => sheet.getByTestId('section-row-work').click());
+  await expect(breadcrumb).toContainText('Trabajo y estudios');
+  // "Ocupación" was saved by the jump, so the section resumes on its next incomplete screen.
+  await expect(page.locator('main[data-step]')).toHaveAttribute('data-step', 'screen');
+  await expect(page.locator('main[data-step] h1')).not.toHaveText('Ocupación');
+}
+
 test('full applicant journey is visible to the manager at 100%', async ({ page: manager, browser }) => {
   test.skip(!PASSWORD, 'Set E2E_MANAGER_PASSWORD');
   test.setTimeout(600_000);
@@ -143,6 +176,7 @@ test('full applicant journey is visible to the manager at 100%', async ({ page: 
     await enter.click();
     await expect(page.locator('main[data-step]')).toBeVisible();
 
+    let navChecked = false;
     for (let guard = 0; guard < 120; guard++) {
       const kind = await page.locator('main[data-step]').getAttribute('data-step');
       if (kind === 'chapter') {
@@ -151,6 +185,11 @@ test('full applicant journey is visible to the manager at 100%', async ({ page: 
         const none = page.getByRole('checkbox', { name: 'Ninguno / No aplica' });
         if ((await none.count()) > 0) await none.click();
         else await fillVisibleFields(page);
+        if (!navChecked && (await page.locator('main[data-step] h1').first().textContent()) === 'Ocupación') {
+          navChecked = true;
+          await checkSectionNavigation(page);
+          continue; // back in "Trabajo y estudios" on its first incomplete screen
+        }
         await advance(page, () => Promise.all([
           page.waitForResponse(isAnswersSave),
           page.getByRole('button', { name: 'Siguiente' }).click(),
@@ -167,6 +206,7 @@ test('full applicant journey is visible to the manager at 100%', async ({ page: 
       } else if (kind === 'review') break;
       else throw new Error(`Unexpected data-step "${kind}"`);
     }
+    expect(navChecked, 'section navigation check ran').toBe(true);
 
     await page.getByRole('button', { name: 'Enviar solicitud' }).click();
     await expect(page.getByTestId('submitted')).toBeVisible();
