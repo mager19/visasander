@@ -1,4 +1,4 @@
-import { DeleteObjectsCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectsCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 export const SIGNED_URL_TTL_SECONDS = 300;
@@ -22,8 +22,8 @@ function client(): S3Client {
   return s3;
 }
 
-export const presignPut = (key: string, contentType: string): Promise<string> =>
-  getSignedUrl(client(), new PutObjectCommand({ Bucket: env('R2_BUCKET'), Key: key, ContentType: contentType }), { expiresIn: SIGNED_URL_TTL_SECONDS });
+export const presignPut = (key: string, contentType: string, size: number): Promise<string> =>
+  getSignedUrl(client(), new PutObjectCommand({ Bucket: env('R2_BUCKET'), Key: key, ContentType: contentType, ContentLength: size }), { expiresIn: SIGNED_URL_TTL_SECONDS });
 
 export const presignGet = (key: string, filename?: string): Promise<string> =>
   getSignedUrl(
@@ -47,4 +47,21 @@ export async function deleteObjects(keys: string[]): Promise<void> {
     const r = await client().send(new DeleteObjectsCommand({ Bucket: env('R2_BUCKET'), Delete: { Objects: chunk.map((Key) => ({ Key })), Quiet: true } }));
     if (r.Errors?.length) throw new Error(`R2 failed to delete ${r.Errors.length} object(s)`);
   }
+}
+
+export async function listObjectKeys(prefix: string): Promise<string[]> {
+  const keys: string[] = [];
+  let continuationToken: string | undefined;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const r = await client().send(new ListObjectsV2Command({ Bucket: env('R2_BUCKET'), Prefix: prefix, ContinuationToken: continuationToken }));
+    if (r.Contents) {
+      for (const obj of r.Contents) {
+        if (obj.Key) keys.push(obj.Key);
+      }
+    }
+    if (!r.IsTruncated) break;
+    continuationToken = r.NextContinuationToken;
+  }
+  return keys;
 }
