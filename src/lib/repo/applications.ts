@@ -78,6 +78,10 @@ export async function markReviewed(id: string): Promise<void> {
   await sql()`update applications set status = 'reviewed', reviewed_at = now(), updated_at = now() where id = ${id}`;
 }
 
+export async function reopenApplication(id: string): Promise<void> {
+  await sql()`update applications set status = 'submitted', reviewed_at = null, updated_at = now() where id = ${id} and status = 'reviewed'`;
+}
+
 export async function claimAttempt(id: string): Promise<number | null> {
   const rows = await sql()`update applications set failed_attempts = failed_attempts + 1 where id = ${id} and not locked and failed_attempts < ${MAX_ATTEMPTS}::int returning failed_attempts`;
   return rows[0] ? (rows[0].failed_attempts as number) : null;
