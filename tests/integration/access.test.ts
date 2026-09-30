@@ -13,6 +13,7 @@ describeDb('access service', () => {
     const r = await verifyAccess(application.token, code, 'ua');
     expect(r.ok).toBe(true);
     if (!r.ok) return;
+    expect(r.ok).toBe(true);
     expect(await authenticate(r.application, r.sessionToken)).toBe(true);
     expect((await getById(application.id))!.status).toBe('in_progress');
   });
@@ -27,7 +28,14 @@ describeDb('access service', () => {
     const { application, code } = await createApplication({ clientName: 'Ana' });
     const first = await verifyAccess(application.token, wrongFor(code), 'ua');
     expect(first).toEqual({ ok: false, reason: 'invalid_code', attemptsLeft: 4 });
-    for (let i = 0; i < 4; i++) await verifyAccess(application.token, wrongFor(code), 'ua');
+    const second = await verifyAccess(application.token, wrongFor(code), 'ua');
+    expect(second).toEqual({ ok: false, reason: 'invalid_code', attemptsLeft: 3 });
+    const third = await verifyAccess(application.token, wrongFor(code), 'ua');
+    expect(third).toEqual({ ok: false, reason: 'invalid_code', attemptsLeft: 2 });
+    const fourth = await verifyAccess(application.token, wrongFor(code), 'ua');
+    expect(fourth).toEqual({ ok: false, reason: 'invalid_code', attemptsLeft: 1 });
+    const fifth = await verifyAccess(application.token, wrongFor(code), 'ua');
+    expect(fifth).toEqual({ ok: false, reason: 'locked' });
     expect(await verifyAccess(application.token, code, 'ua')).toEqual({ ok: false, reason: 'locked' });
   });
 
@@ -43,6 +51,7 @@ describeDb('access service', () => {
     const tokens: string[] = [];
     for (let i = 0; i < 3; i++) {
       const r = await verifyAccess(application.token, code, `ua${i}`);
+      expect(r.ok).toBe(true);
       if (r.ok) tokens.push(r.sessionToken);
     }
     expect(await authenticate(application, tokens[0])).toBe(false);
@@ -53,6 +62,7 @@ describeDb('access service', () => {
   it('regenerating the code invalidates sessions, unlocks, and rejects the old code', async () => {
     const { application, code } = await createApplication({ clientName: 'Ana' });
     const r = await verifyAccess(application.token, code, 'ua');
+    expect(r.ok).toBe(true);
     for (let i = 0; i < 5; i++) await verifyAccess(application.token, wrongFor(code), 'ua');
     const newCode = await regenerateCode(application.id);
     const fresh = (await getById(application.id))!;
@@ -66,5 +76,23 @@ describeDb('access service', () => {
     const { application, code } = await createApplication({ clientName: 'Old', retentionDays: -1 });
     expect(await verifyAccess(application.token, code, 'ua')).toEqual({ ok: false, reason: 'expired' });
     expect(await authenticate(application, undefined)).toBe(false);
+  });
+
+  it('handles burst of concurrent wrong guesses with atomic lockout', async () => {
+    const { application, code } = await createApplication({ clientName: 'Ana' });
+    const results = await Promise.all(
+      Array.from({ length: 20 }, () => verifyAccess(application.token, wrongFor(code), 'ua'))
+    );
+    const invalidCodes = results.filter((r) => !r.ok && r.reason === 'invalid_code').length;
+    expect(invalidCodes).toBeLessThanOrEqual(5);
+    expect((await getById(application.id))!.locked).toBe(true);
+  });
+
+  it('authenticate returns false for locked or expired applications', async () => {
+    const { application } = await createApplication({ clientName: 'Ana' });
+    const token = 'dummy-token';
+    expect(await authenticate(application, token)).toBe(false);
+    const expired = await createApplication({ clientName: 'Old', retentionDays: -1 });
+    expect(await authenticate(expired.application, token)).toBe(false);
   });
 });

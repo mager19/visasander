@@ -1,5 +1,5 @@
 import { MAX_ATTEMPTS } from './constants';
-import { getByToken, recordFailedAttempt, resetAttempts, setInProgress, type Application } from './repo/applications';
+import { getByToken, claimAttempt, lockApplication, resetAttempts, setInProgress, type Application } from './repo/applications';
 import { createSession, touchSession } from './repo/sessions';
 import { hashAccessCode, normalizeCode, safeEqual } from './security';
 
@@ -15,14 +15,19 @@ export async function verifyAccess(token: string, rawCode: string, userAgent: st
   if (isExpired(app)) return { ok: false, reason: 'expired' };
   if (app.locked) return { ok: false, reason: 'locked' };
 
+  const k = await claimAttempt(app.id);
+  if (k === null) return { ok: false, reason: 'locked' };
+
   const code = normalizeCode(rawCode);
   if (!safeEqual(hashAccessCode(app.id, code), app.codeHash)) {
-    const r = await recordFailedAttempt(app.id);
-    if (r.locked) return { ok: false, reason: 'locked' };
-    return { ok: false, reason: 'invalid_code', attemptsLeft: MAX_ATTEMPTS - r.failedAttempts };
+    if (k >= MAX_ATTEMPTS) {
+      await lockApplication(app.id);
+      return { ok: false, reason: 'locked' };
+    }
+    return { ok: false, reason: 'invalid_code', attemptsLeft: MAX_ATTEMPTS - k };
   }
 
-  await resetAttempts(app.id);
+  if (!(await resetAttempts(app.id))) return { ok: false, reason: 'locked' };
   await setInProgress(app.id);
   const sessionToken = await createSession(app.id, userAgent.slice(0, 200));
   return { ok: true, sessionToken, application: app };

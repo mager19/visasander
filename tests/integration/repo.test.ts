@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { hit } from '@/lib/rate-limit';
-import { createApplication, getById, getByToken, recordFailedAttempt, saveAnswers, listApplications } from '@/lib/repo/applications';
+import { createApplication, getById, getByToken, claimAttempt, lockApplication, saveAnswers, listApplications } from '@/lib/repo/applications';
 import { addFile, allFileKinds, fileKeys } from '@/lib/repo/files';
 import { createSession, sessionStats, touchSession } from '@/lib/repo/sessions';
 import { describeDb, resetDb } from '../helpers/db';
@@ -29,9 +29,14 @@ describeDb('repositories', () => {
 
   it('counts failed attempts and locks at the limit', async () => {
     const { application } = await createApplication({ clientName: 'Ana' });
-    let last = { failedAttempts: 0, locked: false };
-    for (let i = 0; i < 5; i++) last = await recordFailedAttempt(application.id);
-    expect(last).toEqual({ failedAttempts: 5, locked: true });
+    const counts = [];
+    for (let i = 0; i < 6; i++) {
+      const k = await claimAttempt(application.id);
+      counts.push(k);
+    }
+    expect(counts).toEqual([1, 2, 3, 4, 5, null]);
+    await lockApplication(application.id);
+    expect((await getById(application.id))!.locked).toBe(true);
   });
 
   it('keeps only the 2 most recent sessions and touches by token', async () => {

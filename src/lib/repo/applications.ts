@@ -78,15 +78,18 @@ export async function markReviewed(id: string): Promise<void> {
   await sql()`update applications set status = 'reviewed', reviewed_at = now(), updated_at = now() where id = ${id}`;
 }
 
-export async function recordFailedAttempt(id: string): Promise<{ failedAttempts: number; locked: boolean }> {
-  const rows = await sql()`
-    update applications set failed_attempts = failed_attempts + 1, locked = (failed_attempts + 1 >= ${MAX_ATTEMPTS}::int)
-    where id = ${id} returning failed_attempts, locked`;
-  return { failedAttempts: rows[0].failed_attempts as number, locked: rows[0].locked as boolean };
+export async function claimAttempt(id: string): Promise<number | null> {
+  const rows = await sql()`update applications set failed_attempts = failed_attempts + 1 where id = ${id} and not locked and failed_attempts < ${MAX_ATTEMPTS}::int returning failed_attempts`;
+  return rows[0] ? (rows[0].failed_attempts as number) : null;
 }
 
-export async function resetAttempts(id: string): Promise<void> {
-  await sql()`update applications set failed_attempts = 0 where id = ${id}`;
+export async function lockApplication(id: string): Promise<void> {
+  await sql()`update applications set locked = true where id = ${id}`;
+}
+
+export async function resetAttempts(id: string): Promise<boolean> {
+  const rows = await sql()`update applications set failed_attempts = 0 where id = ${id} and not locked returning id`;
+  return rows.length > 0;
 }
 
 export async function regenerateCode(id: string): Promise<string> {
