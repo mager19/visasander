@@ -7,6 +7,7 @@ import type { Answers } from '@/lib/form/types';
 interface Props {
   token: string;
   shortId: string;
+  status: 'created' | 'in_progress' | 'submitted' | 'reviewed';
   answers: Answers;
   files: { kind: string }[];
   goToChapter: (chapterId: string) => void;
@@ -17,7 +18,7 @@ interface Props {
 
 type State = 'idle' | 'sending' | 'done' | 'reviewed' | 'unauthorized' | 'error';
 
-export function Review({ token, shortId, answers, files, goToChapter, back, readOnly = false }: Props) {
+export function Review({ token, shortId, status, answers, files, goToChapter, back, readOnly = false }: Props) {
   const [state, setState] = useState<State>('idle');
   const progress = computeProgress(answers, files.map((f) => f.kind));
   const locked = readOnly || state === 'reviewed';
@@ -60,6 +61,7 @@ export function Review({ token, shortId, answers, files, goToChapter, back, read
         </div>
       )}
       {state === 'error' && <p role="alert" style={{ color: 'var(--danger)' }}>No pudimos enviar. Inténtalo de nuevo.</p>}
+      {!locked && status === 'submitted' && <p className="muted">Ya enviaste tu información. Puedes seguir editando hasta que tu gestor la revise.</p>}
       <div className="actions">
         {!locked && state !== 'unauthorized' && <button className="btn btn-primary" onClick={send} disabled={state === 'sending'}>Enviar solicitud</button>}
         <button className="btn btn-ghost" onClick={back}>Atrás</button>

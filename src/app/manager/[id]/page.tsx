@@ -2,21 +2,26 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { CopyButton } from '@/components/manager/CopyButton';
 import { DetailActions } from '@/components/manager/DetailActions';
+import { FileGallery } from '@/components/manager/FileGallery';
 import { chapterAsText, chapterRows } from '@/lib/form/display';
 import { FILE_LABELS, type FileKind } from '@/lib/form/file-kinds';
 import { computeProgress } from '@/lib/form/progress';
 import { CHAPTERS } from '@/lib/form/schema';
+import { MAX_ATTEMPTS } from '@/lib/constants';
+import { isUuid } from '@/lib/http';
 import { isManager } from '@/lib/manager-auth';
 import { mp } from '@/lib/paths';
 import { getById } from '@/lib/repo/applications';
 import { listFiles } from '@/lib/repo/files';
 import { sessionStats } from '@/lib/repo/sessions';
+import { STATUS_LABEL } from '@/lib/status';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   if (!(await isManager())) redirect(mp('/login'));
   const { id } = await params;
+  if (!isUuid(id)) notFound();
   const app = await getById(id);
   if (!app) notFound();
   const [files, stats] = await Promise.all([listFiles(id), sessionStats(id)]);
@@ -27,7 +32,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     <>
       <Link href={mp()}>← Solicitudes</Link>
       <header>
-        <p className="eyebrow">{app.shortId} · {app.status}</p>
+        <p className="eyebrow">{app.shortId} · {STATUS_LABEL[app.status]}</p>
         {app.status === 'reviewed' && <p className="muted">El cliente no puede editar mientras esté revisada.</p>}
         <h1>{app.clientName}</h1>
         <div className="progress" role="progressbar" aria-valuenow={progress.percent} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${progress.percent}%` }} /></div>
@@ -56,13 +61,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
       <section className="card">
         <h2>Archivos <span className="pill">{chapterStatus.get('files')!.missing.length === 0 ? '✓ Completos' : `⚠ Faltan ${chapterStatus.get('files')!.missing.length}`}</span></h2>
-        <ul>
-          {files.map((f) => <li key={f.id}><a href={`/api/manager/files/${f.id}`} target="_blank" rel="noreferrer">{FILE_LABELS[f.kind as FileKind]} ({f.mimeType.split('/')[1]}, {Math.round(f.sizeBytes / 1024)} KB)</a></li>)}
-          {files.length === 0 && <li className="muted">Sin archivos.</li>}
-        </ul>
+        <FileGallery files={files.map((f) => ({ id: f.id, label: FILE_LABELS[f.kind as FileKind] ?? f.kind, mimeType: f.mimeType, sizeKb: Math.round(f.sizeBytes / 1024) }))} />
       </section>
 
-      <DetailActions id={app.id} locked={app.locked} status={app.status} initialNotes={app.managerNotes} />
+      <DetailActions id={app.id} locked={app.locked || app.failedAttempts >= MAX_ATTEMPTS} status={app.status} initialNotes={app.managerNotes} />
     </>
   );
 }

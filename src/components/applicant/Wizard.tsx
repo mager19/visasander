@@ -59,6 +59,7 @@ export function Wizard({ token, initial }: { token: string; initial: ApplicantSt
           <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>Ingresar de nuevo</button>
         </div>
       )}
+      <p className="eyebrow" style={{ margin: '0 0 8px' }}>ID {initial.shortId} · guárdalo para retomar</p>
       <ProgressBar percent={progress.percent} />
       {saveError && <div className="notice" role="alert">No pudimos guardar. Revisa tu conexión e inténtalo de nuevo.</div>}
       <main className="step" data-step={step.kind} key={`${step.kind}-${index}`}>
@@ -77,7 +78,7 @@ export function Wizard({ token, initial }: { token: string; initial: ApplicantSt
           ? <RepeatView screen={step.screen} answers={answers} persist={persist} next={next} back={back} saving={saving} readOnly={reviewed} />
           : <ScreenView screen={step.screen} answers={answers} persist={persist} next={next} back={back} saving={saving} readOnly={reviewed} />)}
         {step.kind === 'files' && <FileStep token={token} files={files} onFilesChange={setFiles} next={next} back={back} readOnly={reviewed} />}
-        {step.kind === 'review' && <Review token={token} shortId={initial.shortId} answers={answers} files={files} goToChapter={goToChapter} back={back} readOnly={reviewed} />}
+        {step.kind === 'review' && <Review token={token} shortId={initial.shortId} status={initial.status} answers={answers} files={files} goToChapter={goToChapter} back={back} readOnly={reviewed} />}
       </main>
     </div>
   );

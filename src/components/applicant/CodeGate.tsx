@@ -9,7 +9,7 @@ const MESSAGES: Record<string, string> = {
   not_found: 'Enlace no válido.',
 };
 
-export function CodeGate({ token, clientName, onSuccess }: { token: string; clientName: string; onSuccess: () => void }) {
+export function CodeGate({ token, firstName, onSuccess }: { token: string; firstName: string; onSuccess: () => void }) {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -35,7 +35,7 @@ export function CodeGate({ token, clientName, onSuccess }: { token: string; clie
     <main className="shell">
       <form className="card" onSubmit={submit}>
         <p className="eyebrow">Solicitud de visa</p>
-        <h1>Hola, {clientName.split(' ')[0]}</h1>
+        <h1>Hola, {firstName}</h1>
         <p className="muted">Escribe el código de 6 dígitos que te entregó tu gestor.</p>
         <div className="field">
           <label htmlFor="code">Código de acceso</label>

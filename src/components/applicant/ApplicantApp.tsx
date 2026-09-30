@@ -6,7 +6,7 @@ import { Wizard } from './Wizard';
 
 type Phase = { kind: 'loading' } | { kind: 'gate' } | { kind: 'ready'; state: ApplicantState } | { kind: 'error' };
 
-export function ApplicantApp({ token, clientName }: { token: string; clientName: string }) {
+export function ApplicantApp({ token, firstName }: { token: string; firstName: string }) {
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
 
   async function load() {
@@ -21,6 +21,6 @@ export function ApplicantApp({ token, clientName }: { token: string; clientName:
 
   if (phase.kind === 'loading') return <main className="shell"><p className="muted">Cargando…</p></main>;
   if (phase.kind === 'error') return <main className="shell"><div className="notice"><h1>No pudimos cargar</h1><button className="btn btn-primary" onClick={load}>Reintentar</button></div></main>;
-  if (phase.kind === 'gate') return <CodeGate token={token} clientName={clientName} onSuccess={load} />;
+  if (phase.kind === 'gate') return <CodeGate token={token} firstName={firstName} onSuccess={load} />;
   return <Wizard token={token} initial={phase.state} />;
 }
